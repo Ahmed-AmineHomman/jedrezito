@@ -216,3 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+## IDE folders
+.idea/
+.vscode/
+.cursor/
+.copilot/
+.gemini/
+.codex/
+.claude/
+
+## Virtual environments
+.venv/
