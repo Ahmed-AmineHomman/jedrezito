@@ -9,6 +9,7 @@ It exposes a central GUI in `./app.py` allowing players to play against the AI i
 - `./app.py`: central GUI, built with `gradio`,
 - `./jedrezito/`: packaged & reusable code.
 - `./docs/`: user-facing documentation.
+- `./scripts/`: helper scripts (train AIs, organize AI tournaments, etc...).
 
 ## Language
 
