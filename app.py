@@ -1158,6 +1158,10 @@ class MainWindow(QMainWindow):
         Army value display for light player.
     score_dark_label : QLabel
         Army value display for dark player.
+    btn_next_move : QPushButton
+        Button triggering next AI action in AI-vs-AI matches.
+    btn_revert_move : QPushButton
+        Button reverting the most recently executed move.
     btn_new_game : QPushButton
         Reset button to start a fresh match with active variant.
     """
@@ -1356,6 +1360,68 @@ class MainWindow(QMainWindow):
             )
         )
 
+        controls_locale: dict[str, Any] = self.locale.get("controls", {})
+
+        # Next move (AI pacing) button
+        self.btn_next_move: QPushButton = QPushButton(
+            controls_locale.get("btn_next_move", "Coup suivant"),
+            self,
+        )
+        self.btn_next_move.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #385e26;"
+            "  color: #ffffff;"
+            "  font-size: 14px;"
+            "  font-weight: bold;"
+            "  padding: 10px;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #4a752c;"
+            "}"
+            "QPushButton:pressed {"
+            "  background-color: #2b451c;"
+            "}"
+            "QPushButton:disabled {"
+            "  background-color: #262422;"
+            "  color: #59534c;"
+            "}"
+        )
+        self.btn_next_move.clicked.connect(self._handle_next_move)
+        sidebar_layout.addWidget(self.btn_next_move)
+
+        # Revert move button
+        self.btn_revert_move: QPushButton = QPushButton(
+            controls_locale.get("btn_revert_move", "Annuler le coup"),
+            self,
+        )
+        self.btn_revert_move.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #332f2b;"
+            "  color: #f0eae1;"
+            "  font-size: 14px;"
+            "  font-weight: bold;"
+            "  padding: 10px;"
+            "  border: 1px solid #4a443e;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #4a443e;"
+            "  border-color: #5d564f;"
+            "}"
+            "QPushButton:pressed {"
+            "  background-color: #242220;"
+            "}"
+            "QPushButton:disabled {"
+            "  background-color: #201e1d;"
+            "  color: #55504a;"
+            "  border-color: #2b2724;"
+            "}"
+        )
+        self.btn_revert_move.clicked.connect(self._handle_revert_move)
+        sidebar_layout.addWidget(self.btn_revert_move)
+
         # Reset / Configure Game Button
         self.btn_new_game: QPushButton = QPushButton(
             app_locale.get("btn_new_game", "Nouvelle partie"),
@@ -1493,10 +1559,80 @@ class MainWindow(QMainWindow):
 
         return f"{base_status}{check_note}{selection_note}"
 
+    @property
+    def is_ai_vs_ai(
+        self,
+    ) -> bool:
+        """Check whether both players are controlled by AI agents.
+
+        Returns
+        -------
+        bool
+            True if both players are AI agents, False otherwise.
+        """
+        return (
+            self.player_configs[Player.LIGHT].kind == PlayerKind.AI
+            and self.player_configs[Player.DARK].kind == PlayerKind.AI
+        )
+
+    @property
+    def is_human_vs_ai(
+        self,
+    ) -> bool:
+        """Check whether the match pits a human player against an AI agent.
+
+        Returns
+        -------
+        bool
+            True if one player is AI and the other is human, False otherwise.
+        """
+        kinds: set[PlayerKind] = {
+            self.player_configs[Player.LIGHT].kind,
+            self.player_configs[Player.DARK].kind,
+        }
+        return kinds == {PlayerKind.HUMAN, PlayerKind.AI}
+
+    @property
+    def is_human_vs_human(
+        self,
+    ) -> bool:
+        """Check whether both players are human players.
+
+        Returns
+        -------
+        bool
+            True if both players are human players, False otherwise.
+        """
+        return (
+            self.player_configs[Player.LIGHT].kind == PlayerKind.HUMAN
+            and self.player_configs[Player.DARK].kind == PlayerKind.HUMAN
+        )
+
+    def _handle_next_move(
+        self,
+    ) -> None:
+        """Trigger the next AI move in an AI-vs-AI match upon button click."""
+        if self.engine.status != GameStatus.ONGOING:
+            return
+        if not self.is_ai_vs_ai:
+            return
+
+        self._perform_ai_move()
+
+    def _handle_revert_move(
+        self,
+    ) -> None:
+        """Revert the most recently executed move upon button click."""
+        self._ai_timer.stop()
+        if self.engine.can_undo():
+            self.engine.undo_move()
+            self.selected_square = None
+            self._update_all()
+
     def _update_all(
         self,
     ) -> None:
-        """Refresh board tiles, status text, and army scores."""
+        """Refresh board tiles, status text, army scores, and action controls."""
         self.board_widget.refresh_board(self.engine, self.selected_square)
         self.status_box.setText(self._format_status_message())
 
@@ -1518,13 +1654,34 @@ class MainWindow(QMainWindow):
         self.score_dark_label.setText(
             dark_template.format(score=f"{dark_val:g}")
         )
+
+        # Update action buttons state based on match mode
+        if self.is_ai_vs_ai:
+            self.btn_next_move.setVisible(True)
+            self.btn_next_move.setEnabled(
+                self.engine.status == GameStatus.ONGOING
+            )
+            self.btn_revert_move.setVisible(True)
+            self.btn_revert_move.setEnabled(self.engine.can_undo())
+        elif self.is_human_vs_ai:
+            self.btn_next_move.setVisible(False)
+            self.btn_revert_move.setVisible(True)
+            self.btn_revert_move.setEnabled(self.engine.can_undo())
+        else:
+            self.btn_next_move.setVisible(False)
+            self.btn_revert_move.setVisible(False)
+
         self._check_ai_turn()
 
     def _check_ai_turn(
         self,
     ) -> None:
-        """Schedule an AI move if the active player is an AI."""
+        """Schedule an AI move if active player is AI in Human-vs-AI mode."""
         if self.engine.status != GameStatus.ONGOING:
+            return
+
+        # AI-vs-AI pacing is manually triggered via btn_next_move
+        if not self.is_human_vs_ai:
             return
 
         current: Player = self.engine.current_player

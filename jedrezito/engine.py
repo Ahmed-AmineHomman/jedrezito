@@ -8,6 +8,9 @@ to the JEG specification.
 from __future__ import annotations
 
 import copy
+from dataclasses import (
+    dataclass,
+)
 from typing import Iterator
 
 from jedrezito.models import (
@@ -19,6 +22,34 @@ from jedrezito.models import (
     Player,
     RayFamily,
 )
+
+
+@dataclass(frozen=True)
+class MoveRecord:
+    """Historical record of an executed move for undo operations.
+
+    Parameters
+    ----------
+    move : Move
+        The executed move.
+    moving_piece : Piece
+        The piece occupying the origin square prior to the move.
+    captured_piece : Piece or None
+        The piece captured at the destination square, if any.
+    previous_player : Player
+        The player who executed the move.
+    previous_status : GameStatus
+        Game status before the move was executed.
+    previous_winner : Player or None
+        Game winner before the move was executed.
+    """
+
+    move: Move
+    moving_piece: Piece
+    captured_piece: Piece | None
+    previous_player: Player
+    previous_status: GameStatus
+    previous_winner: Player | None
 
 
 class GameEngine:
@@ -43,6 +74,8 @@ class GameEngine:
         The winning player, or None if ongoing or drawn.
     turns_played : dict of Player to int
         Number of moves completed by each player.
+    history : list of MoveRecord
+        Chronological stack of executed moves allowing undo operations.
     """
 
     def __init__(
@@ -58,6 +91,7 @@ class GameEngine:
             Player.LIGHT: 0,
             Player.DARK: 0,
         }
+        self.history: list[MoveRecord] = []
         self.reset()
 
     def reset(
@@ -74,6 +108,7 @@ class GameEngine:
             Player.LIGHT: 0,
             Player.DARK: 0,
         }
+        self.history = []
 
         # Setup Light pieces
         for col_idx, piece_name in enumerate(self.config.initial_back_rank):
@@ -697,6 +732,19 @@ class GameEngine:
 
         # Execute the move
         tr, tc = matched_move.to_pos
+        captured_piece: Piece | None = self.board[tr][tc]
+
+        self.history.append(
+            MoveRecord(
+                move=matched_move,
+                moving_piece=piece,
+                captured_piece=captured_piece,
+                previous_player=self.current_player,
+                previous_status=self.status,
+                previous_winner=self.winner,
+            )
+        )
+
         self.board[fr][fc] = None
 
         if matched_move.promotion_type is not None:
@@ -710,6 +758,46 @@ class GameEngine:
         self.turns_played[self.current_player] += 1
         self.current_player = self.current_player.opponent
         self._evaluate_game_status()
+        return True
+
+    def can_undo(
+        self,
+    ) -> bool:
+        """Check whether there is at least one move to revert.
+
+        Returns
+        -------
+        bool
+            True if move history is non-empty, False otherwise.
+        """
+        return len(self.history) > 0
+
+    def undo_move(
+        self,
+    ) -> bool:
+        """Revert the most recently executed move.
+
+        Restores the previous board configuration, turns played, active player,
+        and game status.
+
+        Returns
+        -------
+        bool
+            True if a move was successfully undone, False if history was empty.
+        """
+        if not self.history:
+            return False
+
+        record: MoveRecord = self.history.pop()
+        fr, fc = record.move.from_pos
+        tr, tc = record.move.to_pos
+
+        self.board[fr][fc] = record.moving_piece
+        self.board[tr][tc] = record.captured_piece
+        self.turns_played[record.previous_player] -= 1
+        self.current_player = record.previous_player
+        self.status = record.previous_status
+        self.winner = record.previous_winner
         return True
 
     def _evaluate_game_status(

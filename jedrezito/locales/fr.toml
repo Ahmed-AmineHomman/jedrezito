@@ -6,6 +6,11 @@ sidebar_title = "Jeux d'Échecs Généralisés"
 sidebar_description = "Affrontement local au tour par tour (mode hotseat)"
 btn_new_game = "Nouvelle partie"
 
+[controls]
+group_title = "Contrôles de jeu"
+btn_next_move = "Coup suivant"
+btn_revert_move = "Annuler le coup"
+
 [selector]
 group_title = "Variante de jeu"
 variant_label = "Choisir une variante :"
