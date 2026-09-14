@@ -5,7 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "jedrezito"
 version = "0.1.0"
+description = "AI training gym & arena to train agents playing generalized variants of chess"
+readme = "docs/README.rst"
+requires-python = ">=3.10"
+authors = [
+    { name = "Ahmed-Amine HOMMAN" }
+]
 dynamic = ["dependencies"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+include = ["jedrezito*"]
+
+[tool.setuptools.package-data]
+jedrezito = ["assets/**/*"]
