@@ -21,10 +21,14 @@ from jedrezito.ai.bully import (
 from jedrezito.ai.joker import (
     JokerAI,
 )
+from jedrezito.ai.scaredycat import (
+    ScaredycatAI,
+)
 
 AI_REGISTRY: dict[str, Callable[..., BaseAI]] = {
     "bully": BullyAI,
     "joker": JokerAI,
+    "scaredycat": ScaredycatAI,
 }
 
 
@@ -75,6 +79,7 @@ __all__: list[str] = [
     "BaseAI",
     "BullyAI",
     "JokerAI",
+    "ScaredycatAI",
     "create_ai",
     "list_available_ais",
 ]

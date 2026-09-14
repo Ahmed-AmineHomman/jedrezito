@@ -20,6 +20,7 @@ ai = "IA"
 [ais]
 bully = "Bully (Agressif)"
 joker = "Joker (Aléatoire)"
+scaredycat = "Scaredycat (Défensif)"
 
 [status]
 turn = "Tour : {player}"
