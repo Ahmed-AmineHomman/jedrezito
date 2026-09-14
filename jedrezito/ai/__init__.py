@@ -15,11 +15,15 @@ from typing import (
 from jedrezito.ai.base import (
     BaseAI,
 )
+from jedrezito.ai.bully import (
+    BullyAI,
+)
 from jedrezito.ai.joker import (
     JokerAI,
 )
 
 AI_REGISTRY: dict[str, Callable[..., BaseAI]] = {
+    "bully": BullyAI,
     "joker": JokerAI,
 }
 
@@ -69,6 +73,7 @@ def create_ai(
 
 __all__: list[str] = [
     "BaseAI",
+    "BullyAI",
     "JokerAI",
     "create_ai",
     "list_available_ais",

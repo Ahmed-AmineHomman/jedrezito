@@ -28,6 +28,7 @@ human = "Humain"
 ai = "IA"
 
 [ais]
+bully = "Bully (Agressif)"
 joker = "Joker (Aléatoire)"
 
 
