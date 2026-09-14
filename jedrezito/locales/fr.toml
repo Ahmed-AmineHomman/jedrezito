@@ -11,16 +11,6 @@ group_title = "Contrôles de jeu"
 btn_next_move = "Coup suivant"
 btn_revert_move = "Annuler le coup"
 
-[selector]
-group_title = "Variante de jeu"
-variant_label = "Choisir une variante :"
-btn_load = "Charger la variante"
-dimensions_label = "Plateau : {rows} × {cols}"
-turn_limit_label = "Limite de tours : {limit}"
-turn_limit_none = "Illimité"
-confirm_switch_title = "Changer de variante"
-confirm_switch_message = "Une partie est en cours. Voulez-vous vraiment charger cette variante et réinitialiser la partie ?"
-
 [players]
 light = "Blancs"
 dark = "Noirs"
@@ -30,7 +20,6 @@ ai = "IA"
 [ais]
 bully = "Bully (Agressif)"
 joker = "Joker (Aléatoire)"
-
 
 [status]
 turn = "Tour : {player}"
@@ -46,6 +35,40 @@ group_title = "Valeur des armées"
 score_light = "Blancs : {score}"
 score_dark = "Noirs : {score}"
 
+[cards]
+dark_title = "Joueur Noirs"
+light_title = "Joueur Blancs"
+turn_active = "AU TRAIT"
+turn_waiting = "En attente"
+check_badge = "ÉCHEC"
+captured_title = "Pièces capturées :"
+no_captures = "Aucune capture"
+points_label = "{pts} pts"
+advantage = "+{diff}"
+
+[plot]
+group_title = "Évolution des armées"
+light_legend = "Blancs"
+dark_legend = "Noirs"
+move_axis = "Coup"
+points_axis = "Points"
+empty_hint = "En attente du premier coup..."
+tooltip_format = "Coup {move} : Blancs {light} pts | Noirs {dark} pts"
+
+[status_panel]
+banner_title = "État de la partie"
+ongoing = "Partie en cours"
+turn_label = "Au trait : {player}"
+turn_light = "Tour des Blancs"
+turn_dark = "Tour des Noirs"
+move_counter = "Coup {ply} (Tour {turn})"
+turn_limit_counter = "Tour {turn} / {limit}"
+check_alert = "⚠️ Échec au Roi !"
+game_over_checkmate = "🏆 Échec et mat ! Victoire des {winner}."
+game_over_stalemate = "🤝 Match nul par pat !"
+game_over_exhaustion_win = "⌛ Limite atteinte : Victoire des {winner}."
+game_over_exhaustion_draw = "⌛ Limite atteinte : Égalité matérielle."
+
 [dialogs.promotion]
 window_title = "Promotion du pion"
 prompt = "Choisissez une pièce pour la promotion :"
@@ -58,10 +81,12 @@ players_group = "Configuration des joueurs"
 light_player_label = "Joueur Blancs :"
 dark_player_label = "Joueur Noirs :"
 ai_choice_label = "Modèle d'IA :"
+dimensions_label = "Plateau : {rows} × {cols}"
+turn_limit_label = "Limite de tours : {limit}"
+turn_limit_none = "Illimité"
 btn_start = "Démarrer la partie"
 btn_cancel = "Annuler"
 btn_open_setup = "Configurer la partie"
-
 
 [pieces]
 King = "Roi"

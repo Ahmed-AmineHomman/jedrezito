@@ -534,10 +534,12 @@ class GameSetupDialog(QDialog):
             self.lbl_variant_info.setText("")
             return
 
-        selector_locale: dict[str, Any] = self.locale.get("selector", {})
+        setup_locale: dict[str, Any] = (
+            self.locale.get("dialogs", {}).get("setup", {})
+        )
         try:
             meta: dict[str, Any] = get_variant_metadata(variant_id)
-            dim_template: str = selector_locale.get(
+            dim_template: str = setup_locale.get(
                 "dimensions_label",
                 "Plateau : {rows} × {cols}",
             )
@@ -549,9 +551,9 @@ class GameSetupDialog(QDialog):
             limit_str: str = (
                 str(turn_limit)
                 if turn_limit is not None
-                else selector_locale.get("turn_limit_none", "Illimité")
+                else setup_locale.get("turn_limit_none", "Illimité")
             )
-            turn_template: str = selector_locale.get(
+            turn_template: str = setup_locale.get(
                 "turn_limit_label",
                 "Limite de tours : {limit}",
             )

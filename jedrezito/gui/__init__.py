@@ -19,21 +19,27 @@ from jedrezito.gui.dialogs import (
     PromotionDialog,
 )
 from jedrezito.gui.widgets import (
-    GameSelectorWidget,
+    ArmyHistoryPlotWidget,
+    CapturedPiecesWidget,
+    PlayerCardWidget,
+    TurnStatusWidget,
 )
 from jedrezito.gui.window import (
     MainWindow,
 )
 
 __all__: list[str] = [
+    "ArmyHistoryPlotWidget",
+    "CapturedPiecesWidget",
     "ChessBoardWidget",
     "ChessSquareButton",
-    "GameSelectorWidget",
     "GameSetupDialog",
     "MainWindow",
     "PIECE_SYMBOLS",
+    "PlayerCardWidget",
     "PlayerKind",
     "PlayerSettings",
     "PromotionDialog",
     "ResponsiveBoardContainer",
+    "TurnStatusWidget",
 ]

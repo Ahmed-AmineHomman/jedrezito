@@ -76,6 +76,8 @@ class GameEngine:
         Number of moves completed by each player.
     history : list of MoveRecord
         Chronological stack of executed moves allowing undo operations.
+    army_history : list of tuple of int
+        Chronological record of (light_army_value, dark_army_value) over moves.
     """
 
     def __init__(
@@ -92,6 +94,7 @@ class GameEngine:
             Player.DARK: 0,
         }
         self.history: list[MoveRecord] = []
+        self.army_history: list[tuple[int, int]] = []
         self.reset()
 
     def reset(
@@ -143,6 +146,10 @@ class GameEngine:
                     piece_type=piece_name,
                     player=Player.DARK,
                 )
+
+        self.army_history = [
+            (self.get_army_value(Player.LIGHT), self.get_army_value(Player.DARK))
+        ]
 
     def is_in_bounds(
         self,
@@ -758,6 +765,9 @@ class GameEngine:
         self.turns_played[self.current_player] += 1
         self.current_player = self.current_player.opponent
         self._evaluate_game_status()
+        self.army_history.append(
+            (self.get_army_value(Player.LIGHT), self.get_army_value(Player.DARK))
+        )
         return True
 
     def can_undo(
@@ -798,7 +808,43 @@ class GameEngine:
         self.current_player = record.previous_player
         self.status = record.previous_status
         self.winner = record.previous_winner
+        if len(self.army_history) > 1:
+            self.army_history.pop()
         return True
+
+    def get_captured_pieces(
+        self,
+        player: Player,
+    ) -> list[Piece]:
+        """Retrieve the list of opponent pieces captured by the specified player.
+
+        Parameters
+        ----------
+        player : Player
+            The player who performed the captures.
+
+        Returns
+        -------
+        list of Piece
+            List of captured pieces in chronological order.
+        """
+        return [
+            record.captured_piece
+            for record in self.history
+            if record.previous_player == player and record.captured_piece is not None
+        ]
+
+    def get_army_history(
+        self,
+    ) -> list[tuple[int, int]]:
+        """Retrieve the chronological record of army values for both players.
+
+        Returns
+        -------
+        list of tuple of int
+            List of (light_value, dark_value) at each move stage.
+        """
+        return list(self.army_history)
 
     def _evaluate_game_status(
         self,

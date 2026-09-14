@@ -1,7 +1,10 @@
 """Main desktop application window for the Jedrezito GUI.
 
-This module provides the central application window connecting the responsive chessboard,
-game engine, game configuration dialogs, and controls sidebar.
+This module provides the central 16:9 desktop application window connecting:
+- Left sidebar: game configuration and match controls
+- Center viewport: responsive, auto-scaling chessboard grid
+- Right dashboard: active turn banner, player cards (Human/AI details),
+  captured pieces trays, and real-time army points history line plot.
 """
 
 from __future__ import annotations
@@ -21,11 +24,9 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -49,14 +50,15 @@ from jedrezito.gui.board import (
     ResponsiveBoardContainer,
 )
 from jedrezito.gui.dialogs import (
-    PIECE_SYMBOLS,
     GameSetupDialog,
     PlayerKind,
     PlayerSettings,
     PromotionDialog,
 )
 from jedrezito.gui.widgets import (
-    GameSelectorWidget,
+    ArmyHistoryPlotWidget,
+    PlayerCardWidget,
+    TurnStatusWidget,
 )
 from jedrezito.models import (
     GameConfig,
@@ -107,14 +109,14 @@ class MainWindow(QMainWindow):
         Layout managing dynamic board widget replacement.
     board_widget : ChessBoardWidget
         Active chessboard grid widget.
-    selector_widget : GameSelectorWidget
-        Sidebar widget for variant selection and switching.
-    status_box : QLabel
-        Banner displaying active player, status, or game result.
-    score_light_label : QLabel
-        Army value display for light player.
-    score_dark_label : QLabel
-        Army value display for dark player.
+    turn_status_widget : TurnStatusWidget
+        Prominent active turn banner and check alert widget.
+    dark_player_card : PlayerCardWidget
+        Dark player information card.
+    light_player_card : PlayerCardWidget
+        Light player information card.
+    army_plot_widget : ArmyHistoryPlotWidget
+        Interactive line plot showing army points history.
     btn_next_move : QPushButton
         Button triggering next AI action in AI-vs-AI matches.
     btn_revert_move : QPushButton
@@ -157,11 +159,12 @@ class MainWindow(QMainWindow):
             )
         )
 
-        self.setMinimumSize(760, 520)
+        # 16:9 desktop window dimensions (1280x720 default, 960x540 min)
+        self.setMinimumSize(960, 540)
         if self.start_maximized:
             self.setWindowState(Qt.WindowState.WindowMaximized)
         else:
-            self.resize(1020, 700)
+            self.resize(1280, 720)
 
         self.engine: GameEngine = GameEngine(self.config)
         self.selected_square: Optional[tuple[int, int]] = None
@@ -187,15 +190,173 @@ class MainWindow(QMainWindow):
     def _setup_ui(
         self,
     ) -> None:
-        """Initialize central layout, controls sidebar, and responsive board widget."""
+        """Initialize central 3-column layout optimized for 16:9 desktop displays."""
         central_widget: QWidget = QWidget(self)
+        central_widget.setStyleSheet("background-color: #1a1816;")
         self.setCentralWidget(central_widget)
 
         main_layout: QHBoxLayout = QHBoxLayout(central_widget)
-        main_layout.setContentsMargins(18, 18, 18, 18)
-        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(14, 14, 14, 14)
+        main_layout.setSpacing(14)
 
-        # Responsive chessboard container on the left
+        app_locale: dict[str, Any] = self.locale.get("app", {})
+        controls_locale: dict[str, Any] = self.locale.get("controls", {})
+
+        # =========================================================================
+        # LEFT COLUMN: Match controls & actions (Width ~280px)
+        # =========================================================================
+        left_panel: QFrame = QFrame(self)
+        left_panel.setStyleSheet(
+            "QFrame {"
+            "  background-color: #242220;"
+            "  border-radius: 8px;"
+            "}"
+        )
+        left_layout: QVBoxLayout = QVBoxLayout(left_panel)
+        left_layout.setSpacing(12)
+        left_layout.setContentsMargins(10, 10, 10, 10)
+
+        # App title and subtitle
+        lbl_app_title: QLabel = QLabel(
+            app_locale.get("sidebar_title", "Jeux d'Échecs Généralisés"),
+            self,
+        )
+        lbl_app_title.setStyleSheet(
+            "color: #f5f5f5; font-size: 16px; font-weight: bold; background: transparent;"
+        )
+        left_layout.addWidget(lbl_app_title)
+
+        lbl_app_sub: QLabel = QLabel(
+            app_locale.get(
+                "sidebar_description",
+                "Affrontement local au tour par tour (mode hotseat)",
+            ),
+            self,
+        )
+        lbl_app_sub.setWordWrap(True)
+        lbl_app_sub.setStyleSheet(
+            "color: #a8a096; font-size: 12px; background: transparent;"
+        )
+        left_layout.addWidget(lbl_app_sub)
+
+        # Spacer to push action controls down
+        left_layout.addSpacerItem(
+            QSpacerItem(
+                20,
+                20,
+                QSizePolicy.Policy.Minimum,
+                QSizePolicy.Policy.Expanding,
+            )
+        )
+
+        # Action Buttons Group
+        actions_group: QFrame = QFrame(self)
+        actions_group.setStyleSheet("background: transparent; border: none;")
+        actions_layout: QVBoxLayout = QVBoxLayout(actions_group)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(8)
+
+        # Reset / Configure New Game Button
+        self.btn_new_game: QPushButton = QPushButton(
+            app_locale.get("btn_new_game", "Nouvelle partie"),
+            self,
+        )
+        self.btn_new_game.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #4a752c;"
+            "  color: #ffffff;"
+            "  font-size: 14px;"
+            "  font-weight: bold;"
+            "  padding: 10px;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #5d9337;"
+            "}"
+            "QPushButton:pressed {"
+            "  background-color: #3b5e23;"
+            "}"
+        )
+        self.btn_new_game.clicked.connect(self._handle_new_game)
+        actions_layout.addWidget(self.btn_new_game)
+
+        # Next move (AI pacing) button
+        self.btn_next_move: QPushButton = QPushButton(
+            controls_locale.get("btn_next_move", "Coup suivant"),
+            self,
+        )
+        self.btn_next_move.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #385e26;"
+            "  color: #ffffff;"
+            "  font-size: 13px;"
+            "  font-weight: bold;"
+            "  padding: 9px;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #4a752c;"
+            "}"
+            "QPushButton:pressed {"
+            "  background-color: #2b451c;"
+            "}"
+            "QPushButton:disabled {"
+            "  background-color: #262422;"
+            "  color: #59534c;"
+            "}"
+        )
+        self.btn_next_move.clicked.connect(self._handle_next_move)
+        actions_layout.addWidget(self.btn_next_move)
+
+        # Revert move button
+        self.btn_revert_move: QPushButton = QPushButton(
+            controls_locale.get("btn_revert_move", "Annuler le coup"),
+            self,
+        )
+        self.btn_revert_move.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #332f2b;"
+            "  color: #f0eae1;"
+            "  font-size: 13px;"
+            "  font-weight: bold;"
+            "  padding: 9px;"
+            "  border: 1px solid #4a443e;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #4a443e;"
+            "  border-color: #5d564f;"
+            "}"
+            "QPushButton:pressed {"
+            "  background-color: #242220;"
+            "}"
+            "QPushButton:disabled {"
+            "  background-color: #201e1d;"
+            "  color: #55504a;"
+            "  border-color: #2b2724;"
+            "}"
+        )
+        self.btn_revert_move.clicked.connect(self._handle_revert_move)
+        actions_layout.addWidget(self.btn_revert_move)
+
+        left_layout.addWidget(actions_group)
+
+        # Wrap left panel in scroll area for safety on small displays
+        left_scroll: QScrollArea = QScrollArea(self)
+        left_scroll.setFixedWidth(280)
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        left_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        left_scroll.setWidget(left_panel)
+        main_layout.addWidget(left_scroll, stretch=0)
+
+        # =========================================================================
+        # CENTER COLUMN: Responsive Chessboard Container (Stretch = 1)
+        # =========================================================================
         self.board_container: ResponsiveBoardContainer = (
             ResponsiveBoardContainer(self)
         )
@@ -219,226 +380,60 @@ class MainWindow(QMainWindow):
             stretch=1,
         )
 
-        # Control sidebar on the right enclosed in a scroll area for small screens
-        sidebar_frame: QFrame = QFrame(self)
-        sidebar_frame.setStyleSheet(
+        # =========================================================================
+        # RIGHT COLUMN: Dashboard & Information Panels (Width ~330px)
+        # =========================================================================
+        right_panel: QFrame = QFrame(self)
+        right_panel.setStyleSheet(
             "QFrame {"
             "  background-color: #242220;"
             "  border-radius: 8px;"
-            "  padding: 12px;"
             "}"
         )
-        sidebar_layout: QVBoxLayout = QVBoxLayout(sidebar_frame)
-        sidebar_layout.setSpacing(14)
+        right_layout: QVBoxLayout = QVBoxLayout(right_panel)
+        right_layout.setSpacing(10)
+        right_layout.setContentsMargins(10, 10, 10, 10)
 
-        app_locale: dict[str, Any] = self.locale.get("app", {})
-
-        # Header Title
-        title_label: QLabel = QLabel(
-            app_locale.get("sidebar_title", "Jeux d'Échecs Généralisés"),
+        # 1. Turn / Match Status Banner (no player identity repetition)
+        self.turn_status_widget: TurnStatusWidget = TurnStatusWidget(
+            self.locale,
             self,
         )
-        title_label.setStyleSheet(
-            "color: #f5f5f5;"
-            "font-size: 18px;"
-            "font-weight: bold;"
-        )
-        subtitle_label: QLabel = QLabel(
-            app_locale.get(
-                "sidebar_description",
-                "Affrontement local au tour par tour (mode hotseat)",
-            ),
+        right_layout.addWidget(self.turn_status_widget)
+
+        # 2. Dark Player Card (Top participant)
+        self.dark_player_card: PlayerCardWidget = PlayerCardWidget(
+            Player.DARK,
+            self.locale,
             self,
         )
-        subtitle_label.setWordWrap(True)
-        subtitle_label.setStyleSheet(
-            "color: #a8a096;"
-            "font-size: 13px;"
-        )
-        sidebar_layout.addWidget(title_label)
-        sidebar_layout.addWidget(subtitle_label)
+        right_layout.addWidget(self.dark_player_card)
 
-        # Game Selector Group
-        self.selector_widget: GameSelectorWidget = GameSelectorWidget(
-            current_variant=self.current_variant,
-            locale=self.locale,
-            parent=self,
-        )
-        self.selector_widget.variant_selected.connect(
-            self._handle_variant_selected
-        )
-        sidebar_layout.addWidget(self.selector_widget)
-
-        # Status Banner Box
-        self.status_box: QLabel = QLabel(self)
-        self.status_box.setWordWrap(True)
-        self.status_box.setStyleSheet(
-            "QLabel {"
-            "  background-color: #1a1816;"
-            "  color: #e0d8cf;"
-            "  border: 1px solid #3c3834;"
-            "  border-radius: 6px;"
-            "  padding: 10px;"
-            "  font-size: 14px;"
-            "}"
-        )
-        sidebar_layout.addWidget(self.status_box)
-
-        # Army Scores Group
-        scores_locale: dict[str, Any] = self.locale.get("scores", {})
-        scores_group: QGroupBox = QGroupBox(
-            scores_locale.get("group_title", "Valeur des armées"),
+        # 3. Light Player Card (Bottom participant)
+        self.light_player_card: PlayerCardWidget = PlayerCardWidget(
+            Player.LIGHT,
+            self.locale,
             self,
         )
-        scores_group.setStyleSheet(
-            "QGroupBox {"
-            "  color: #d6cfc7;"
-            "  font-weight: bold;"
-            "  border: 1px solid #3c3834;"
-            "  border-radius: 6px;"
-            "  margin-top: 10px;"
-            "  padding-top: 12px;"
-            "}"
-            "QGroupBox::title {"
-            "  subcontrol-origin: margin;"
-            "  left: 10px;"
-            "  padding: 0 4px;"
-            "}"
-        )
-        scores_layout: QHBoxLayout = QHBoxLayout(scores_group)
+        right_layout.addWidget(self.light_player_card)
 
-        self.score_light_label: QLabel = QLabel("", self)
-        self.score_light_label.setStyleSheet(
-            "background-color: #332f2b;"
-            "color: #ffffff;"
-            "font-size: 14px;"
-            "font-weight: bold;"
-            "padding: 8px;"
-            "border-radius: 4px;"
-            "qproperty-alignment: AlignCenter;"
-        )
-        scores_layout.addWidget(self.score_light_label)
-
-        self.score_dark_label: QLabel = QLabel("", self)
-        self.score_dark_label.setStyleSheet(
-            "background-color: #1a1715;"
-            "color: #cccccc;"
-            "font-size: 14px;"
-            "font-weight: bold;"
-            "padding: 8px;"
-            "border-radius: 4px;"
-            "qproperty-alignment: AlignCenter;"
-        )
-        scores_layout.addWidget(self.score_dark_label)
-        sidebar_layout.addWidget(scores_group)
-
-        # Spacer to push action buttons down
-        sidebar_layout.addSpacerItem(
-            QSpacerItem(
-                20,
-                20,
-                QSizePolicy.Policy.Minimum,
-                QSizePolicy.Policy.Expanding,
-            )
-        )
-
-        controls_locale: dict[str, Any] = self.locale.get("controls", {})
-
-        # Next move (AI pacing) button
-        self.btn_next_move: QPushButton = QPushButton(
-            controls_locale.get("btn_next_move", "Coup suivant"),
+        # 4. Army Material Points History Line Plot
+        self.army_plot_widget: ArmyHistoryPlotWidget = ArmyHistoryPlotWidget(
+            self.locale,
             self,
         )
-        self.btn_next_move.setStyleSheet(
-            "QPushButton {"
-            "  background-color: #385e26;"
-            "  color: #ffffff;"
-            "  font-size: 14px;"
-            "  font-weight: bold;"
-            "  padding: 10px;"
-            "  border: none;"
-            "  border-radius: 6px;"
-            "}"
-            "QPushButton:hover {"
-            "  background-color: #4a752c;"
-            "}"
-            "QPushButton:pressed {"
-            "  background-color: #2b451c;"
-            "}"
-            "QPushButton:disabled {"
-            "  background-color: #262422;"
-            "  color: #59534c;"
-            "}"
-        )
-        self.btn_next_move.clicked.connect(self._handle_next_move)
-        sidebar_layout.addWidget(self.btn_next_move)
+        right_layout.addWidget(self.army_plot_widget)
 
-        # Revert move button
-        self.btn_revert_move: QPushButton = QPushButton(
-            controls_locale.get("btn_revert_move", "Annuler le coup"),
-            self,
-        )
-        self.btn_revert_move.setStyleSheet(
-            "QPushButton {"
-            "  background-color: #332f2b;"
-            "  color: #f0eae1;"
-            "  font-size: 14px;"
-            "  font-weight: bold;"
-            "  padding: 10px;"
-            "  border: 1px solid #4a443e;"
-            "  border-radius: 6px;"
-            "}"
-            "QPushButton:hover {"
-            "  background-color: #4a443e;"
-            "  border-color: #5d564f;"
-            "}"
-            "QPushButton:pressed {"
-            "  background-color: #242220;"
-            "}"
-            "QPushButton:disabled {"
-            "  background-color: #201e1d;"
-            "  color: #55504a;"
-            "  border-color: #2b2724;"
-            "}"
-        )
-        self.btn_revert_move.clicked.connect(self._handle_revert_move)
-        sidebar_layout.addWidget(self.btn_revert_move)
-
-        # Reset / Configure Game Button
-        self.btn_new_game: QPushButton = QPushButton(
-            app_locale.get("btn_new_game", "Nouvelle partie"),
-            self,
-        )
-        self.btn_new_game.setStyleSheet(
-            "QPushButton {"
-            "  background-color: #4a752c;"
-            "  color: #ffffff;"
-            "  font-size: 15px;"
-            "  font-weight: bold;"
-            "  padding: 10px;"
-            "  border: none;"
-            "  border-radius: 6px;"
-            "}"
-            "QPushButton:hover {"
-            "  background-color: #5d9337;"
-            "}"
-            "QPushButton:pressed {"
-            "  background-color: #3b5e23;"
-            "}"
-        )
-        self.btn_new_game.clicked.connect(self._handle_new_game)
-        sidebar_layout.addWidget(self.btn_new_game)
-
-        sidebar_scroll: QScrollArea = QScrollArea(self)
-        sidebar_scroll.setFixedWidth(350)
-        sidebar_scroll.setWidgetResizable(True)
-        sidebar_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        sidebar_scroll.setHorizontalScrollBarPolicy(
+        # Wrap right panel in scroll area
+        right_scroll: QScrollArea = QScrollArea(self)
+        right_scroll.setFixedWidth(330)
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        right_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        sidebar_scroll.setWidget(sidebar_frame)
-
-        main_layout.addWidget(sidebar_scroll, stretch=0)
+        right_scroll.setWidget(right_panel)
+        main_layout.addWidget(right_scroll, stretch=0)
 
     def _on_board_container_resized(
         self,
@@ -457,118 +452,6 @@ class MainWindow(QMainWindow):
         if self.board_widget is not None:
             self.board_widget.resize_to_fit(width, height)
 
-    def _format_status_message(
-        self,
-    ) -> str:
-        """Format the localized status message based on current engine state.
-
-        Returns
-        -------
-        str
-            Status string for display.
-        """
-        status_locale: dict[str, Any] = self.locale.get("status", {})
-        players_locale: dict[str, Any] = self.locale.get("players", {})
-        pieces_locale: dict[str, Any] = self.locale.get("pieces", {})
-
-        light_name: str = players_locale.get("light", "Blancs")
-        dark_name: str = players_locale.get("dark", "Noirs")
-
-        if self.engine.status == GameStatus.CHECKMATE:
-            winner_str: str = (
-                light_name if self.engine.winner == Player.LIGHT else dark_name
-            )
-            template: str = status_locale.get(
-                "checkmate",
-                "🏆 Échec et mat !\nVictoire des {winner}.",
-            )
-            return template.format(winner=winner_str)
-
-        if self.engine.status == GameStatus.STALEMATE:
-            return status_locale.get(
-                "stalemate",
-                "🤝 Pat !\nLa partie se termine par un match nul.",
-            )
-
-        if self.engine.status == GameStatus.TURN_EXHAUSTED:
-            if self.engine.winner is not None:
-                winner_str = (
-                    light_name
-                    if self.engine.winner == Player.LIGHT
-                    else dark_name
-                )
-                template = status_locale.get(
-                    "turn_exhausted_win",
-                    "⌛ Épuisement des tours !\nVictoire des {winner} au matériel.",
-                )
-                return template.format(winner=winner_str)
-            return status_locale.get(
-                "turn_exhausted_draw",
-                "⌛ Épuisement des tours !\nÉgalité matérielle parfaite.",
-            )
-
-        player_camp: Player = self.engine.current_player
-        player_str: str = (
-            light_name if player_camp == Player.LIGHT else dark_name
-        )
-
-        ctrl_settings: PlayerSettings = self.player_configs.get(
-            player_camp,
-            PlayerSettings(PlayerKind.HUMAN),
-        )
-        if ctrl_settings.kind == PlayerKind.AI:
-            ai_name_str: str = ctrl_settings.ai_name or "joker"
-            ai_name_disp: str = self.locale.get("ais", {}).get(
-                ai_name_str,
-                ai_name_str.capitalize(),
-            )
-            controller_label: str = (
-                f"{players_locale.get('ai', 'IA')} {ai_name_disp}"
-            )
-        else:
-            controller_label = players_locale.get("human", "Humain")
-
-        turn_template: str = status_locale.get(
-            "turn",
-            "Tour : {player}",
-        )
-        base_status: str = (
-            f"{turn_template.format(player=player_str)} ({controller_label})"
-        )
-
-        check_note: str = ""
-        if self.engine.is_in_check(self.engine.current_player):
-            check_note = status_locale.get(
-                "check_warning",
-                "\n⚠️ Échec au Roi !",
-            )
-
-        selection_note: str = ""
-        if self.selected_square is not None:
-            r, c = self.selected_square
-            piece: Optional[Piece] = self.engine.get_piece(r, c)
-            if piece is not None:
-                symbol: str = PIECE_SYMBOLS.get(
-                    (piece.piece_type, piece.player),
-                    piece.piece_type,
-                )
-                coord_str: str = f"{chr(ord('a') + c)}{r + 1}"
-                local_type: str = pieces_locale.get(
-                    piece.piece_type,
-                    piece.piece_type,
-                )
-                selection_template: str = status_locale.get(
-                    "selection_pattern",
-                    "\nSélection : {symbol} {piece_name} ({coords})",
-                )
-                selection_note = selection_template.format(
-                    symbol=symbol,
-                    piece_name=local_type,
-                    coords=coord_str,
-                )
-
-        return f"{base_status}{check_note}{selection_note}"
-
     @property
     def is_ai_vs_ai(
         self,
@@ -576,7 +459,7 @@ class MainWindow(QMainWindow):
         """Check whether both players are controlled by AI agents.
 
         Returns
-        -------
+        ------
         bool
             True if both players are AI agents, False otherwise.
         """
@@ -592,7 +475,7 @@ class MainWindow(QMainWindow):
         """Check whether the match pits a human player against an AI agent.
 
         Returns
-        -------
+        ------
         bool
             True if one player is AI and the other is human, False otherwise.
         """
@@ -609,7 +492,7 @@ class MainWindow(QMainWindow):
         """Check whether both players are human players.
 
         Returns
-        -------
+        ------
         bool
             True if both players are human players, False otherwise.
         """
@@ -642,31 +525,83 @@ class MainWindow(QMainWindow):
     def _update_all(
         self,
     ) -> None:
-        """Refresh board tiles, status text, army scores, and action controls."""
+        """Refresh board tiles, status widgets, player cards, and history plot."""
         self.board_widget.refresh_board(self.engine, self.selected_square)
-        self.status_box.setText(self._format_status_message())
 
-        scores_locale: dict[str, Any] = self.locale.get("scores", {})
-        light_template: str = scores_locale.get(
-            "score_light",
-            "Blancs : {score}",
+        cur_player: Player = self.engine.current_player
+        cur_settings: PlayerSettings = self.player_configs.get(
+            cur_player,
+            PlayerSettings(PlayerKind.HUMAN),
         )
-        dark_template: str = scores_locale.get(
-            "score_dark",
-            "Noirs : {score}",
-        )
-
-        light_val: float = self.engine.get_army_value(Player.LIGHT)
-        dark_val: float = self.engine.get_army_value(Player.DARK)
-
-        self.score_light_label.setText(
-            light_template.format(score=f"{light_val:g}")
-        )
-        self.score_dark_label.setText(
-            dark_template.format(score=f"{dark_val:g}")
+        is_check: bool = self.engine.is_in_check(cur_player)
+        selected_piece: Optional[Piece] = (
+            self.engine.get_piece(*self.selected_square)
+            if self.selected_square is not None
+            else None
         )
 
-        # Update action buttons state based on match mode
+        # 1. Update Turn / Match Status banner
+        self.turn_status_widget.update_status(
+            current_player=cur_player,
+            player_settings=cur_settings,
+            is_check=is_check,
+            status=self.engine.status,
+            winner=self.engine.winner,
+            turns_played=self.engine.turns_played,
+            turn_limit=self.config.turn_limit,
+            selected_coords=self.selected_square,
+            selected_piece=selected_piece,
+            board_rows=self.config.rows,
+        )
+
+        # 2. Army values & captured pieces
+        light_val: int = self.engine.get_army_value(Player.LIGHT)
+        dark_val: int = self.engine.get_army_value(Player.DARK)
+        light_captured: list[Piece] = self.engine.get_captured_pieces(
+            Player.LIGHT
+        )
+        dark_captured: list[Piece] = self.engine.get_captured_pieces(Player.DARK)
+
+        # 3. Update Dark Player Card
+        self.dark_player_card.update_card(
+            settings=self.player_configs[Player.DARK],
+            is_current_turn=(
+                cur_player == Player.DARK
+                and self.engine.status == GameStatus.ONGOING
+            ),
+            is_in_check=(
+                cur_player == Player.DARK
+                and is_check
+                and self.engine.status == GameStatus.ONGOING
+            ),
+            army_value=dark_val,
+            opponent_army_value=light_val,
+            captured_pieces=dark_captured,
+            piece_types=self.config.piece_types,
+        )
+
+        # 4. Update Light Player Card
+        self.light_player_card.update_card(
+            settings=self.player_configs[Player.LIGHT],
+            is_current_turn=(
+                cur_player == Player.LIGHT
+                and self.engine.status == GameStatus.ONGOING
+            ),
+            is_in_check=(
+                cur_player == Player.LIGHT
+                and is_check
+                and self.engine.status == GameStatus.ONGOING
+            ),
+            army_value=light_val,
+            opponent_army_value=dark_val,
+            captured_pieces=light_captured,
+            piece_types=self.config.piece_types,
+        )
+
+        # 5. Update Army Points History Line Plot
+        self.army_plot_widget.set_history(self.engine.get_army_history())
+
+        # 6. Update action buttons state based on match mode
         if self.is_ai_vs_ai:
             self.btn_next_move.setVisible(True)
             self.btn_next_move.setEnabled(
@@ -883,45 +818,6 @@ class MainWindow(QMainWindow):
             self.selected_square = None
             self._update_all()
 
-    def _handle_variant_selected(
-        self,
-        variant_name: str,
-    ) -> None:
-        """Process variant selection request and prompt if a match is in progress.
-
-        Parameters
-        ----------
-        variant_name : str
-            Identifier of the variant to load.
-        """
-        total_moves: int = sum(self.engine.turns_played.values())
-        if self.engine.status == GameStatus.ONGOING and total_moves > 0:
-            selector_locale: dict[str, Any] = self.locale.get("selector", {})
-            title: str = selector_locale.get(
-                "confirm_switch_title",
-                "Changer de variante",
-            )
-            message: str = selector_locale.get(
-                "confirm_switch_message",
-                "Une partie est en cours. Voulez-vous vraiment charger cette variante et réinitialiser la partie ?",
-            )
-            reply = QMessageBox.question(
-                self,
-                title,
-                message,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                self.selector_widget.set_current_variant(self.current_variant)
-                return
-
-        self._start_configured_game(
-            variant_name=variant_name,
-            light_settings=self.player_configs[Player.LIGHT],
-            dark_settings=self.player_configs[Player.DARK],
-        )
-
     def _load_game_variant(
         self,
         variant_name: str,
@@ -959,5 +855,4 @@ class MainWindow(QMainWindow):
                 self.board_container.height(),
             )
 
-        self.selector_widget.set_current_variant(variant_name)
         self._update_all()
