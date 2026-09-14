@@ -23,6 +23,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDialog,
     QFrame,
     QGridLayout,
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QSpacerItem,
@@ -38,6 +40,8 @@ from PySide6.QtWidgets import (
 )
 
 from jedrezito.config import (
+    get_variant_metadata,
+    list_available_variants,
     load_variant_config,
 )
 from jedrezito.engine import (
@@ -455,6 +459,247 @@ class ChessBoardWidget(QFrame):
             )
 
 
+class GameSelectorWidget(QGroupBox):
+    """Sidebar widget facilitating in-app game variant selection and engine re-initialization.
+
+    Parameters
+    ----------
+    current_variant : str
+        Identifier of the currently loaded variant.
+    locale : dict of str to Any
+        Localized GUI strings dictionary.
+    parent : QWidget or None, optional
+        Parent widget, by default None.
+
+    Attributes
+    ----------
+    variant_selected : Signal
+        Signal emitted with the selected variant identifier when confirmed.
+    locale : dict of str to Any
+        Active localization strings dictionary.
+    combo_variants : QComboBox
+        Dropdown selector of available game variants.
+    lbl_dimensions : QLabel
+        Label displaying board dimensions of the selected variant.
+    lbl_turn_limit : QLabel
+        Label displaying turn limit of the selected variant.
+    btn_load : QPushButton
+        Button triggering variant loading into the engine.
+    """
+
+    variant_selected: Signal = Signal(str)
+
+    def __init__(
+        self,
+        current_variant: str,
+        locale: dict[str, Any],
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        selector_locale: dict[str, Any] = locale.get("selector", {})
+        title: str = selector_locale.get("group_title", "Variante de jeu")
+        super().__init__(title, parent)
+        self.locale: dict[str, Any] = locale
+        self._current_variant: str = current_variant
+
+        self.setStyleSheet(
+            "QGroupBox {"
+            "  color: #d6cfc7;"
+            "  font-weight: bold;"
+            "  border: 1px solid #3c3834;"
+            "  border-radius: 6px;"
+            "  margin-top: 10px;"
+            "  padding-top: 12px;"
+            "}"
+            "QGroupBox::title {"
+            "  subcontrol-origin: margin;"
+            "  left: 10px;"
+            "  padding: 0 4px;"
+            "}"
+        )
+
+        self._setup_ui()
+        self.set_current_variant(current_variant)
+
+    def _setup_ui(
+        self,
+    ) -> None:
+        """Initialize child widgets and layout for variant selection."""
+        layout: QVBoxLayout = QVBoxLayout(self)
+        layout.setSpacing(8)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        selector_locale: dict[str, Any] = self.locale.get("selector", {})
+
+        # Dropdown for available variants
+        self.combo_variants: QComboBox = QComboBox(self)
+        self.combo_variants.setStyleSheet(
+            "QComboBox {"
+            "  background-color: #332f2b;"
+            "  color: #f0eae1;"
+            "  border: 1px solid #4a443e;"
+            "  border-radius: 6px;"
+            "  padding: 6px 10px;"
+            "  font-size: 13px;"
+            "}"
+            "QComboBox:hover {"
+            "  border-color: #5d9337;"
+            "}"
+            "QComboBox::drop-down {"
+            "  border: none;"
+            "  width: 20px;"
+            "}"
+            "QComboBox QAbstractItemView {"
+            "  background-color: #242220;"
+            "  color: #f0eae1;"
+            "  selection-background-color: #4a752c;"
+            "  selection-color: #ffffff;"
+            "  border: 1px solid #4a443e;"
+            "  outline: none;"
+            "}"
+        )
+
+        variants: list[str] = list_available_variants()
+        for v in variants:
+            try:
+                meta: dict[str, Any] = get_variant_metadata(v)
+                disp_name: str = meta.get("name", v)
+            except Exception:
+                disp_name = v
+            self.combo_variants.addItem(f"{disp_name} ({v})", v)
+
+        self.combo_variants.currentIndexChanged.connect(self._on_combo_changed)
+        layout.addWidget(self.combo_variants)
+
+        # Metadata preview container
+        meta_frame: QFrame = QFrame(self)
+        meta_frame.setStyleSheet(
+            "QFrame {"
+            "  background-color: #1a1816;"
+            "  border: 1px solid #332f2b;"
+            "  border-radius: 4px;"
+            "  padding: 6px;"
+            "}"
+        )
+        meta_layout: QVBoxLayout = QVBoxLayout(meta_frame)
+        meta_layout.setContentsMargins(6, 6, 6, 6)
+        meta_layout.setSpacing(4)
+
+        self.lbl_dimensions: QLabel = QLabel(self)
+        self.lbl_dimensions.setStyleSheet("color: #b0a89f; font-size: 12px;")
+        meta_layout.addWidget(self.lbl_dimensions)
+
+        self.lbl_turn_limit: QLabel = QLabel(self)
+        self.lbl_turn_limit.setStyleSheet("color: #b0a89f; font-size: 12px;")
+        meta_layout.addWidget(self.lbl_turn_limit)
+
+        layout.addWidget(meta_frame)
+
+        # Load button
+        self.btn_load: QPushButton = QPushButton(
+            selector_locale.get("btn_load", "Charger la variante"),
+            self,
+        )
+        self.btn_load.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #385e26;"
+            "  color: #ffffff;"
+            "  font-size: 13px;"
+            "  font-weight: bold;"
+            "  padding: 8px;"
+            "  border: none;"
+            "  border-radius: 5px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #4a752c;"
+            "}"
+            "QPushButton:pressed {"
+            "  background-color: #2b451c;"
+            "}"
+        )
+        self.btn_load.clicked.connect(self._on_load_clicked)
+        layout.addWidget(self.btn_load)
+
+    def _on_combo_changed(
+        self,
+        index: int,
+    ) -> None:
+        """Update metadata summary display when combo selection changes.
+
+        Parameters
+        ----------
+        index : int
+            Current index in the variant combo box.
+        """
+        variant_id: Optional[str] = self.combo_variants.itemData(index)
+        if variant_id is not None:
+            self._update_preview(variant_id)
+
+    def _update_preview(
+        self,
+        variant_id: str,
+    ) -> None:
+        """Refresh dimension and turn limit display labels.
+
+        Parameters
+        ----------
+        variant_id : str
+            Identifier of the variant.
+        """
+        selector_locale: dict[str, Any] = self.locale.get("selector", {})
+        try:
+            meta: dict[str, Any] = get_variant_metadata(variant_id)
+            dim_template: str = selector_locale.get(
+                "dimensions_label",
+                "Plateau : {rows} × {cols}",
+            )
+            self.lbl_dimensions.setText(
+                dim_template.format(rows=meta["rows"], cols=meta["cols"])
+            )
+
+            turn_limit: Optional[int] = meta.get("turn_limit")
+            limit_str: str = (
+                str(turn_limit)
+                if turn_limit is not None
+                else selector_locale.get("turn_limit_none", "Illimité")
+            )
+            turn_template: str = selector_locale.get(
+                "turn_limit_label",
+                "Limite de tours : {limit}",
+            )
+            self.lbl_turn_limit.setText(turn_template.format(limit=limit_str))
+        except Exception:
+            self.lbl_dimensions.setText("")
+            self.lbl_turn_limit.setText("")
+
+    def _on_load_clicked(
+        self,
+    ) -> None:
+        """Emit variant selection signal when user confirms load."""
+        idx: int = self.combo_variants.currentIndex()
+        if idx >= 0:
+            variant_id: Optional[str] = self.combo_variants.itemData(idx)
+            if variant_id is not None:
+                self.variant_selected.emit(variant_id)
+
+    def set_current_variant(
+        self,
+        variant_name: str,
+    ) -> None:
+        """Synchronize dropdown selection and preview with current variant.
+
+        Parameters
+        ----------
+        variant_name : str
+            Variant identifier to select.
+        """
+        self._current_variant = variant_name
+        for i in range(self.combo_variants.count()):
+            if self.combo_variants.itemData(i) == variant_name:
+                self.combo_variants.setCurrentIndex(i)
+                self._update_preview(variant_name)
+                break
+
+
 class MainWindow(QMainWindow):
     """Main desktop application window for Jedrezito chess games.
 
@@ -464,6 +709,8 @@ class MainWindow(QMainWindow):
         Active JEG game configuration.
     locale : dict of str to Any
         Localization dictionary containing UI strings.
+    initial_variant : str, optional
+        Identifier of the initially loaded variant, by default "chess".
     parent : QWidget or None, optional
         Parent widget, by default None.
 
@@ -473,21 +720,41 @@ class MainWindow(QMainWindow):
         Active JEG game configuration.
     locale : dict of str to Any
         Active localization strings dictionary.
+    current_variant : str
+        Identifier of the active game variant.
     engine : GameEngine
         Active JEG game engine instance.
     selected_square : tuple of int or None
         Coordinates (row, col) of currently selected square.
+    board_container : QWidget
+        Container holding the chessboard grid.
+    board_container_layout : QVBoxLayout
+        Layout managing dynamic board widget replacement.
+    board_widget : ChessBoardWidget
+        Active chessboard grid widget.
+    selector_widget : GameSelectorWidget
+        Sidebar widget for variant selection and switching.
+    status_box : QLabel
+        Banner displaying active player, status, or game result.
+    score_light_label : QLabel
+        Army value display for light player.
+    score_dark_label : QLabel
+        Army value display for dark player.
+    btn_new_game : QPushButton
+        Reset button to start a fresh match with active variant.
     """
 
     def __init__(
         self,
         config: GameConfig,
         locale: dict[str, Any],
+        initial_variant: str = "chess",
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.config: GameConfig = config
         self.locale: dict[str, Any] = locale
+        self.current_variant: str = initial_variant
 
         app_locale: dict[str, Any] = self.locale.get("app", {})
         self.setWindowTitle(
@@ -514,14 +781,24 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(18, 18, 18, 18)
         main_layout.setSpacing(20)
 
-        # Chessboard on the left
+        # Chessboard container on the left
+        self.board_container: QWidget = QWidget(self)
+        self.board_container_layout: QVBoxLayout = QVBoxLayout(
+            self.board_container
+        )
+        self.board_container_layout.setContentsMargins(0, 0, 0, 0)
+
         self.board_widget: ChessBoardWidget = ChessBoardWidget(
             self.engine.config,
             self,
         )
         self.board_widget.square_clicked.connect(self._handle_square_click)
-        main_layout.addWidget(
+        self.board_container_layout.addWidget(
             self.board_widget,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
+        main_layout.addWidget(
+            self.board_container,
             alignment=Qt.AlignmentFlag.AlignCenter,
         )
 
@@ -564,6 +841,17 @@ class MainWindow(QMainWindow):
         )
         sidebar_layout.addWidget(title_label)
         sidebar_layout.addWidget(subtitle_label)
+
+        # Game Selector Group
+        self.selector_widget: GameSelectorWidget = GameSelectorWidget(
+            current_variant=self.current_variant,
+            locale=self.locale,
+            parent=self,
+        )
+        self.selector_widget.variant_selected.connect(
+            self._handle_variant_selected
+        )
+        sidebar_layout.addWidget(self.selector_widget)
 
         # Status Banner Box
         self.status_box: QLabel = QLabel(self)
@@ -875,6 +1163,75 @@ class MainWindow(QMainWindow):
         self.selected_square = None
         self._update_all()
 
+    def _handle_variant_selected(
+        self,
+        variant_name: str,
+    ) -> None:
+        """Process variant selection request and prompt if a match is in progress.
+
+        Parameters
+        ----------
+        variant_name : str
+            Identifier of the variant to load.
+        """
+        total_moves: int = sum(self.engine.turns_played.values())
+        if self.engine.status == GameStatus.ONGOING and total_moves > 0:
+            selector_locale: dict[str, Any] = self.locale.get("selector", {})
+            title: str = selector_locale.get(
+                "confirm_switch_title",
+                "Changer de variante",
+            )
+            message: str = selector_locale.get(
+                "confirm_switch_message",
+                "Une partie est en cours. Voulez-vous vraiment charger cette variante et réinitialiser la partie ?",
+            )
+            reply = QMessageBox.question(
+                self,
+                title,
+                message,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                self.selector_widget.set_current_variant(self.current_variant)
+                return
+
+        self._load_game_variant(variant_name)
+
+    def _load_game_variant(
+        self,
+        variant_name: str,
+    ) -> None:
+        """Re-initialize game engine and board widget with the chosen variant.
+
+        Parameters
+        ----------
+        variant_name : str
+            Identifier of the variant to load.
+        """
+        new_config: GameConfig = load_variant_config(variant_name)
+        self.config = new_config
+        self.current_variant = variant_name
+        self.engine = GameEngine(self.config)
+        self.selected_square = None
+
+        self.board_container_layout.removeWidget(self.board_widget)
+        self.board_widget.deleteLater()
+
+        self.board_widget = ChessBoardWidget(
+            self.config,
+            self,
+        )
+        self.board_widget.square_clicked.connect(self._handle_square_click)
+        self.board_container_layout.addWidget(
+            self.board_widget,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
+
+        self.selector_widget.set_current_variant(variant_name)
+        self._update_all()
+        self.adjustSize()
+
 
 def main(
 ) -> None:
@@ -903,6 +1260,7 @@ def main(
     window: MainWindow = MainWindow(
         config=config,
         locale=locale,
+        initial_variant=args.game,
     )
     window.show()
     sys.exit(app.exec())

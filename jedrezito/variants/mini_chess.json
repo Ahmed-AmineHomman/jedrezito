@@ -1,0 +1,161 @@
+{
+  "name": "Mini Chess 6x6 (JEG Variant)",
+  "rows": 6,
+  "cols": 6,
+  "turn_limit": 40,
+  "piece_types": {
+    "King": {
+      "name": "King",
+      "category": "king",
+      "material_value": null,
+      "move_rules": {
+        "rays": [],
+        "jumps": [
+          {"row_offset": 1, "col_offset": 0},
+          {"row_offset": 0, "col_offset": 1},
+          {"row_offset": 1, "col_offset": 1}
+        ],
+        "forward_only": false
+      },
+      "capture_rules": {
+        "rays": [],
+        "jumps": [
+          {"row_offset": 1, "col_offset": 0},
+          {"row_offset": 0, "col_offset": 1},
+          {"row_offset": 1, "col_offset": 1}
+        ],
+        "forward_only": false
+      },
+      "promotions": []
+    },
+    "Queen": {
+      "name": "Queen",
+      "category": "head",
+      "material_value": 9,
+      "move_rules": {
+        "rays": [
+          {"family": "line", "range_limit": null},
+          {"family": "column", "range_limit": null},
+          {"family": "diagonal", "range_limit": null}
+        ],
+        "jumps": [],
+        "forward_only": false
+      },
+      "capture_rules": {
+        "rays": [
+          {"family": "line", "range_limit": null},
+          {"family": "column", "range_limit": null},
+          {"family": "diagonal", "range_limit": null}
+        ],
+        "jumps": [],
+        "forward_only": false
+      },
+      "promotions": []
+    },
+    "Rook": {
+      "name": "Rook",
+      "category": "head",
+      "material_value": 5,
+      "move_rules": {
+        "rays": [
+          {"family": "line", "range_limit": null},
+          {"family": "column", "range_limit": null}
+        ],
+        "jumps": [],
+        "forward_only": false
+      },
+      "capture_rules": {
+        "rays": [
+          {"family": "line", "range_limit": null},
+          {"family": "column", "range_limit": null}
+        ],
+        "jumps": [],
+        "forward_only": false
+      },
+      "promotions": []
+    },
+    "Bishop": {
+      "name": "Bishop",
+      "category": "head",
+      "material_value": 3,
+      "move_rules": {
+        "rays": [
+          {"family": "diagonal", "range_limit": null}
+        ],
+        "jumps": [],
+        "forward_only": false
+      },
+      "capture_rules": {
+        "rays": [
+          {"family": "diagonal", "range_limit": null}
+        ],
+        "jumps": [],
+        "forward_only": false
+      },
+      "promotions": []
+    },
+    "Knight": {
+      "name": "Knight",
+      "category": "head",
+      "material_value": 3,
+      "move_rules": {
+        "rays": [],
+        "jumps": [
+          {"row_offset": 2, "col_offset": 1},
+          {"row_offset": 1, "col_offset": 2}
+        ],
+        "forward_only": false
+      },
+      "capture_rules": {
+        "rays": [],
+        "jumps": [
+          {"row_offset": 2, "col_offset": 1},
+          {"row_offset": 1, "col_offset": 2}
+        ],
+        "forward_only": false
+      },
+      "promotions": []
+    },
+    "Pawn": {
+      "name": "Pawn",
+      "category": "pawn",
+      "material_value": 1,
+      "move_rules": {
+        "rays": [
+          {"family": "line", "range_limit": 1}
+        ],
+        "jumps": [],
+        "forward_only": true
+      },
+      "capture_rules": {
+        "rays": [
+          {"family": "diagonal", "range_limit": 1}
+        ],
+        "jumps": [],
+        "forward_only": true
+      },
+      "promotions": [
+        "Queen",
+        "Rook",
+        "Bishop",
+        "Knight"
+      ]
+    }
+  },
+  "initial_back_rank": [
+    "Rook",
+    "Knight",
+    "Queen",
+    "King",
+    "Bishop",
+    "Rook"
+  ],
+  "initial_pawn_rank": [
+    "Pawn",
+    "Pawn",
+    "Pawn",
+    "Pawn",
+    "Pawn",
+    "Pawn"
+  ]
+}

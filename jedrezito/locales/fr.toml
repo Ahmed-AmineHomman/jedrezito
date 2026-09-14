@@ -6,6 +6,16 @@ sidebar_title = "Jeux d'Échecs Généralisés"
 sidebar_description = "Affrontement local au tour par tour (mode hotseat)"
 btn_new_game = "Nouvelle partie"
 
+[selector]
+group_title = "Variante de jeu"
+variant_label = "Choisir une variante :"
+btn_load = "Charger la variante"
+dimensions_label = "Plateau : {rows} × {cols}"
+turn_limit_label = "Limite de tours : {limit}"
+turn_limit_none = "Illimité"
+confirm_switch_title = "Changer de variante"
+confirm_switch_message = "Une partie est en cours. Voulez-vous vraiment charger cette variante et réinitialiser la partie ?"
+
 [players]
 light = "Blancs"
 dark = "Noirs"

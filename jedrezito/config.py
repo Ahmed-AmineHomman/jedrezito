@@ -290,3 +290,59 @@ def load_default_chess_config(
         The classical chess variant configuration.
     """
     return load_variant_config("chess")
+
+
+def list_available_variants(
+) -> list[str]:
+    """Discover and list all available JEG variants in the variants directory.
+
+    Returns
+    -------
+    list of str
+        Sorted list of variant identifier names without file extensions.
+    """
+    variants_dir: Path = Path(__file__).parent / "variants"
+    if not variants_dir.is_dir():
+        return []
+    return sorted(
+        f.stem
+        for f in variants_dir.glob("*.json")
+        if f.is_file()
+    )
+
+
+def get_variant_metadata(
+    variant_name: str,
+) -> dict[str, Any]:
+    """Retrieve metadata summary for a given JEG variant.
+
+    Parameters
+    ----------
+    variant_name : str
+        Name of the variant corresponding to a JSON file.
+
+    Returns
+    -------
+    dict of str to Any
+        Dictionary containing variant metadata including id, name, rows, cols,
+        and turn_limit.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the variant configuration file does not exist.
+    """
+    variant_path: Path = Path(__file__).parent / "variants" / f"{variant_name}.json"
+    if not variant_path.is_file():
+        raise FileNotFoundError(
+            f"Variant '{variant_name}' not found at {variant_path}"
+        )
+    with variant_path.open("r", encoding="utf-8") as f:
+        data: dict[str, Any] = json.load(f)
+    return {
+        "id": variant_name,
+        "name": data.get("name", variant_name),
+        "rows": int(data.get("rows", 0)),
+        "cols": int(data.get("cols", 0)),
+        "turn_limit": data.get("turn_limit"),
+    }
