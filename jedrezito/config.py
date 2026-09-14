@@ -251,6 +251,35 @@ def load_config(
     return load_config_from_dict(data)
 
 
+def load_variant_config(
+    variant_name: str = "chess",
+) -> GameConfig:
+    """Load a specific JEG variant configuration by name.
+
+    Parameters
+    ----------
+    variant_name : str, optional
+        Name of the variant corresponding to a JSON file in the variants directory,
+        by default "chess".
+
+    Returns
+    -------
+    GameConfig
+        The parsed and validated variant configuration.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the variant configuration file does not exist.
+    """
+    variant_path: Path = Path(__file__).parent / "variants" / f"{variant_name}.json"
+    if not variant_path.is_file():
+        raise FileNotFoundError(
+            f"Variant '{variant_name}' not found at {variant_path}"
+        )
+    return load_config(variant_path)
+
+
 def load_default_chess_config(
 ) -> GameConfig:
     """Load the built-in classical chess JEG variant.
@@ -260,5 +289,4 @@ def load_default_chess_config(
     GameConfig
         The classical chess variant configuration.
     """
-    default_path = Path(__file__).parent / "variants" / "chess.json"
-    return load_config(default_path)
+    return load_variant_config("chess")

@@ -681,10 +681,14 @@ class GameEngine:
         matched_move: Move | None = None
         for cand in legal_moves:
             if cand.to_pos == move.to_pos:
-                if (
-                    move.promotion_type is None
-                    or cand.promotion_type == move.promotion_type
-                ):
+                if cand.promotion_type is not None:
+                    if (
+                        move.promotion_type is None
+                        or cand.promotion_type == move.promotion_type
+                    ):
+                        matched_move = cand
+                        break
+                else:
                     matched_move = cand
                     break
 

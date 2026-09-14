@@ -1,0 +1,37 @@
+# Jedrezito - French localization dictionary
+
+[app]
+window_title = "Jedrezito — Jeux d'Échecs Généralisés"
+sidebar_title = "Jeux d'Échecs Généralisés"
+sidebar_description = "Affrontement local au tour par tour (mode hotseat)"
+btn_new_game = "Nouvelle partie"
+
+[players]
+light = "Blancs"
+dark = "Noirs"
+
+[status]
+turn = "Tour : {player}"
+check_warning = "\n⚠️ Échec au Roi !"
+selection_pattern = "\nSélection : {symbol} {piece_name} ({coords})"
+checkmate = "🏆 Échec et mat !\nVictoire des {winner}."
+stalemate = "🤝 Pat !\nLa partie se termine par un match nul."
+turn_exhausted_win = "⌛ Épuisement des tours !\nVictoire des {winner} au matériel."
+turn_exhausted_draw = "⌛ Épuisement des tours !\nÉgalité matérielle parfaite."
+
+[scores]
+group_title = "Valeur des armées"
+score_light = "Blancs : {score}"
+score_dark = "Noirs : {score}"
+
+[dialogs.promotion]
+window_title = "Promotion du pion"
+prompt = "Choisissez une pièce pour la promotion :"
+
+[pieces]
+King = "Roi"
+Queen = "Reine"
+Rook = "Tour"
+Bishop = "Fou"
+Knight = "Cavalier"
+Pawn = "Pion"

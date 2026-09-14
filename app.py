@@ -1,13 +1,17 @@
 """Jedrezito main desktop GUI application.
 
 This module exposes a PySide6 graphical user interface allowing two human players
-to play Generalized Chess Games (JEG) in hotseat mode on the default chess variant.
+to play Generalized Chess Games (JEG) in hotseat mode with customizable variants and locales.
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
-from typing import Optional
+from typing import (
+    Any,
+    Optional,
+)
 
 from PySide6.QtCore import (
     QSize,
@@ -19,7 +23,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
-    QComboBox,
+    QDialog,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -33,8 +37,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from jedrezito.config import load_default_chess_config
-from jedrezito.engine import GameEngine
+from jedrezito.config import (
+    load_variant_config,
+)
+from jedrezito.engine import (
+    GameEngine,
+)
+from jedrezito.locales import (
+    load_locale,
+)
 from jedrezito.models import (
     GameConfig,
     GameStatus,
@@ -58,12 +69,123 @@ PIECE_SYMBOLS: dict[tuple[str, Player], str] = {
     ("Pawn", Player.DARK): "♟",
 }
 
-FRENCH_PROMOTION_MAP: dict[str, str] = {
-    "Reine": "Queen",
-    "Tour": "Rook",
-    "Fou": "Bishop",
-    "Cavalier": "Knight",
-}
+
+class PromotionDialog(QDialog):
+    """Modal dialog prompting the active player to choose a promotion head piece.
+
+    Parameters
+    ----------
+    player : Player
+        The active player executing the promotion.
+    promotions : list of str
+        Names of allowed piece types eligible for promotion.
+    locale : dict of str to Any
+        Localized GUI strings dictionary.
+    parent : QWidget or None, optional
+        Parent widget, by default None.
+
+    Attributes
+    ----------
+    selected_piece_type : str or None
+        The piece type chosen by the player, or None if dismissed.
+    locale : dict of str to Any
+        Active localization dictionary.
+    """
+
+    def __init__(
+        self,
+        player: Player,
+        promotions: list[str],
+        locale: dict[str, Any],
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.locale: dict[str, Any] = locale
+        self.selected_piece_type: Optional[str] = None
+
+        promo_locale: dict[str, Any] = self.locale.get(
+            "dialogs", {}
+        ).get("promotion", {})
+
+        self.setWindowTitle(
+            promo_locale.get("window_title", "Promotion du pion")
+        )
+        self.setModal(True)
+        self.setStyleSheet(
+            "QDialog {"
+            "  background-color: #242220;"
+            "  border: 2px solid #3c3834;"
+            "  border-radius: 8px;"
+            "}"
+        )
+
+        layout: QVBoxLayout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(14)
+
+        prompt_label: QLabel = QLabel(
+            promo_locale.get(
+                "prompt",
+                "Choisissez une pièce pour la promotion :",
+            ),
+            self,
+        )
+        prompt_label.setStyleSheet(
+            "color: #f0eae1;"
+            "font-size: 14px;"
+            "font-weight: bold;"
+            "qproperty-alignment: AlignCenter;"
+        )
+        layout.addWidget(prompt_label)
+
+        button_layout: QHBoxLayout = QHBoxLayout()
+        button_layout.setSpacing(10)
+
+        piece_names: dict[str, str] = self.locale.get("pieces", {})
+
+        for promo_name in promotions:
+            piece_label: str = piece_names.get(promo_name, promo_name)
+            symbol: str = PIECE_SYMBOLS.get((promo_name, player), promo_name)
+            btn: QPushButton = QPushButton(f"{symbol}  {piece_label}", self)
+            btn.setStyleSheet(
+                "QPushButton {"
+                "  background-color: #332f2b;"
+                "  color: #f0eae1;"
+                "  font-size: 15px;"
+                "  font-weight: bold;"
+                "  padding: 10px 14px;"
+                "  border: 1px solid #4a443e;"
+                "  border-radius: 6px;"
+                "}"
+                "QPushButton:hover {"
+                "  background-color: #4a752c;"
+                "  color: #ffffff;"
+                "  border-color: #5d9337;"
+                "}"
+                "QPushButton:pressed {"
+                "  background-color: #3b5e23;"
+                "}"
+            )
+            btn.clicked.connect(
+                lambda checked=False, p=promo_name: self._choose_piece(p)
+            )
+            button_layout.addWidget(btn)
+
+        layout.addLayout(button_layout)
+
+    def _choose_piece(
+        self,
+        piece_type: str,
+    ) -> None:
+        """Record chosen piece type and accept dialog.
+
+        Parameters
+        ----------
+        piece_type : str
+            Name of chosen piece type.
+        """
+        self.selected_piece_type = piece_type
+        self.accept()
 
 
 class ChessSquareButton(QPushButton):
@@ -175,23 +297,12 @@ class ChessSquareButton(QPushButton):
         else:
             bg_color = base_color
 
-        shadow_style: str = ""
-        if piece is not None and piece.player == Player.LIGHT:
-            shadow_style = (
-                "color: #ffffff; "
-                "-webkit-text-stroke: 1px #111111; "
-            )
-
         self.setStyleSheet(
             f"QPushButton {{"
             f"  background-color: {bg_color};"
             f"  color: {text_color};"
             f"  {border_style}"
             f"  border-radius: 4px;"
-            f"  {shadow_style}"
-            f"}}"
-            f"QPushButton:hover {{"
-            f"  filter: brightness(1.1);"
             f"}}"
         )
 
@@ -349,11 +460,19 @@ class MainWindow(QMainWindow):
 
     Parameters
     ----------
+    config : GameConfig
+        Active JEG game configuration.
+    locale : dict of str to Any
+        Localization dictionary containing UI strings.
     parent : QWidget or None, optional
         Parent widget, by default None.
 
     Attributes
     ----------
+    config : GameConfig
+        Active JEG game configuration.
+    locale : dict of str to Any
+        Active localization strings dictionary.
     engine : GameEngine
         Active JEG game engine instance.
     selected_square : tuple of int or None
@@ -362,13 +481,23 @@ class MainWindow(QMainWindow):
 
     def __init__(
         self,
+        config: GameConfig,
+        locale: dict[str, Any],
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Jedrezito - Jeux d'Échecs Généralisés")
+        self.config: GameConfig = config
+        self.locale: dict[str, Any] = locale
 
-        config: GameConfig = load_default_chess_config()
-        self.engine: GameEngine = GameEngine(config)
+        app_locale: dict[str, Any] = self.locale.get("app", {})
+        self.setWindowTitle(
+            app_locale.get(
+                "window_title",
+                "Jedrezito — Jeux d'Échecs Généralisés",
+            )
+        )
+
+        self.engine: GameEngine = GameEngine(self.config)
         self.selected_square: Optional[tuple[int, int]] = None
 
         self._setup_ui()
@@ -409,17 +538,26 @@ class MainWindow(QMainWindow):
         sidebar_layout: QVBoxLayout = QVBoxLayout(sidebar_frame)
         sidebar_layout.setSpacing(14)
 
+        app_locale: dict[str, Any] = self.locale.get("app", {})
+
         # Header Title
-        title_label: QLabel = QLabel("Jeux d'Échecs Généralisés", self)
+        title_label: QLabel = QLabel(
+            app_locale.get("sidebar_title", "Jeux d'Échecs Généralisés"),
+            self,
+        )
         title_label.setStyleSheet(
             "color: #f5f5f5;"
             "font-size: 18px;"
             "font-weight: bold;"
         )
         subtitle_label: QLabel = QLabel(
-            "Mode hotseat (2 joueurs humains)",
+            app_locale.get(
+                "sidebar_description",
+                "Affrontement local au tour par tour (mode hotseat)",
+            ),
             self,
         )
+        subtitle_label.setWordWrap(True)
         subtitle_label.setStyleSheet(
             "color: #a8a096;"
             "font-size: 13px;"
@@ -443,7 +581,11 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(self.status_box)
 
         # Army Scores Group
-        scores_group: QGroupBox = QGroupBox("Valeur des armées", self)
+        scores_locale: dict[str, Any] = self.locale.get("scores", {})
+        scores_group: QGroupBox = QGroupBox(
+            scores_locale.get("group_title", "Valeur des armées"),
+            self,
+        )
         scores_group.setStyleSheet(
             "QGroupBox {"
             "  color: #d6cfc7;"
@@ -461,7 +603,7 @@ class MainWindow(QMainWindow):
         )
         scores_layout: QHBoxLayout = QHBoxLayout(scores_group)
 
-        self.score_light_label: QLabel = QLabel("Blancs : 0", self)
+        self.score_light_label: QLabel = QLabel("", self)
         self.score_light_label.setStyleSheet(
             "background-color: #332f2b;"
             "color: #ffffff;"
@@ -473,7 +615,7 @@ class MainWindow(QMainWindow):
         )
         scores_layout.addWidget(self.score_light_label)
 
-        self.score_dark_label: QLabel = QLabel("Noirs : 0", self)
+        self.score_dark_label: QLabel = QLabel("", self)
         self.score_dark_label.setStyleSheet(
             "background-color: #1a1715;"
             "color: #cccccc;"
@@ -486,47 +628,6 @@ class MainWindow(QMainWindow):
         scores_layout.addWidget(self.score_dark_label)
         sidebar_layout.addWidget(scores_group)
 
-        # Promotion selector
-        promo_group: QGroupBox = QGroupBox("Promotion du pion", self)
-        promo_group.setStyleSheet(
-            "QGroupBox {"
-            "  color: #d6cfc7;"
-            "  font-weight: bold;"
-            "  border: 1px solid #3c3834;"
-            "  border-radius: 6px;"
-            "  margin-top: 10px;"
-            "  padding-top: 12px;"
-            "}"
-            "QGroupBox::title {"
-            "  subcontrol-origin: margin;"
-            "  left: 10px;"
-            "  padding: 0 4px;"
-            "}"
-        )
-        promo_layout: QVBoxLayout = QVBoxLayout(promo_group)
-        self.promo_combo: QComboBox = QComboBox(self)
-        self.promo_combo.addItems(["Reine", "Tour", "Fou", "Cavalier"])
-        self.promo_combo.setStyleSheet(
-            "QComboBox {"
-            "  background-color: #332f2b;"
-            "  color: #f0eae1;"
-            "  border: 1px solid #4a443e;"
-            "  border-radius: 4px;"
-            "  padding: 6px;"
-            "  font-size: 13px;"
-            "}"
-            "QComboBox::drop-down {"
-            "  border: none;"
-            "}"
-            "QComboBox QAbstractItemView {"
-            "  background-color: #2b2724;"
-            "  color: #f0eae1;"
-            "  selection-background-color: #829769;"
-            "}"
-        )
-        promo_layout.addWidget(self.promo_combo)
-        sidebar_layout.addWidget(promo_group)
-
         # Spacer to push action buttons down
         sidebar_layout.addSpacerItem(
             QSpacerItem(
@@ -538,7 +639,10 @@ class MainWindow(QMainWindow):
         )
 
         # Reset Game Button
-        self.btn_new_game: QPushButton = QPushButton("Nouvelle partie", self)
+        self.btn_new_game: QPushButton = QPushButton(
+            app_locale.get("btn_new_game", "Nouvelle partie"),
+            self,
+        )
         self.btn_new_game.setStyleSheet(
             "QPushButton {"
             "  background-color: #4a752c;"
@@ -564,36 +668,66 @@ class MainWindow(QMainWindow):
     def _format_status_message(
         self,
     ) -> str:
-        """Format the French status message based on current engine state.
+        """Format the localized status message based on current engine state.
 
         Returns
         -------
         str
             Status string for display.
         """
+        status_locale: dict[str, Any] = self.locale.get("status", {})
+        players_locale: dict[str, Any] = self.locale.get("players", {})
+        pieces_locale: dict[str, Any] = self.locale.get("pieces", {})
+
+        light_name: str = players_locale.get("light", "Blancs")
+        dark_name: str = players_locale.get("dark", "Noirs")
+
         if self.engine.status == GameStatus.CHECKMATE:
-            if self.engine.winner == Player.LIGHT:
-                return "🏆 Échec et mat !\nLes Blancs remportent la partie."
-            return "🏆 Échec et mat !\nLes Noirs remportent la partie."
+            winner_str: str = (
+                light_name if self.engine.winner == Player.LIGHT else dark_name
+            )
+            template: str = status_locale.get(
+                "checkmate",
+                "🏆 Échec et mat !\nVictoire des {winner}.",
+            )
+            return template.format(winner=winner_str)
 
         if self.engine.status == GameStatus.STALEMATE:
-            return "🤝 Pat !\nLa partie se termine par un match nul."
+            return status_locale.get(
+                "stalemate",
+                "🤝 Pat !\nLa partie se termine par un match nul.",
+            )
 
         if self.engine.status == GameStatus.TURN_EXHAUSTED:
-            if self.engine.winner == Player.LIGHT:
-                return "⌛ Épuisement des tours !\nVictoire des Blancs au matériel."
-            if self.engine.winner == Player.DARK:
-                return "⌛ Épuisement des tours !\nVictoire des Noirs au matériel."
-            return "⌛ Épuisement des tours !\nÉgalité matérielle."
+            if self.engine.winner is not None:
+                winner_str = (
+                    light_name if self.engine.winner == Player.LIGHT else dark_name
+                )
+                template = status_locale.get(
+                    "turn_exhausted_win",
+                    "⌛ Épuisement des tours !\nVictoire des {winner} au matériel.",
+                )
+                return template.format(winner=winner_str)
+            return status_locale.get(
+                "turn_exhausted_draw",
+                "⌛ Épuisement des tours !\nÉgalité matérielle parfaite.",
+            )
 
         player_str: str = (
-            "Blancs" if self.engine.current_player == Player.LIGHT else "Noirs"
+            light_name if self.engine.current_player == Player.LIGHT else dark_name
         )
-        check_note: str = (
-            "\n⚠️ Échec au Roi !"
-            if self.engine.is_in_check(self.engine.current_player)
-            else ""
+        turn_template: str = status_locale.get(
+            "turn",
+            "Tour : {player}",
         )
+        base_status: str = turn_template.format(player=player_str)
+
+        check_note: str = ""
+        if self.engine.is_in_check(self.engine.current_player):
+            check_note = status_locale.get(
+                "check_warning",
+                "\n⚠️ Échec au Roi !",
+            )
 
         selection_note: str = ""
         if self.selected_square is not None:
@@ -605,9 +739,21 @@ class MainWindow(QMainWindow):
                     piece.piece_type,
                 )
                 coord_str: str = f"{chr(ord('a') + c)}{r + 1}"
-                selection_note = f"\nSélection : {symbol} {piece.piece_type} ({coord_str})"
+                local_type: str = pieces_locale.get(
+                    piece.piece_type,
+                    piece.piece_type,
+                )
+                selection_template: str = status_locale.get(
+                    "selection_pattern",
+                    "\nSélection : {symbol} {piece_name} ({coords})",
+                )
+                selection_note = selection_template.format(
+                    symbol=symbol,
+                    piece_name=local_type,
+                    coords=coord_str,
+                )
 
-        return f"Tour : {player_str}{check_note}{selection_note}"
+        return f"{base_status}{check_note}{selection_note}"
 
     def _update_all(
         self,
@@ -616,10 +762,24 @@ class MainWindow(QMainWindow):
         self.board_widget.refresh_board(self.engine, self.selected_square)
         self.status_box.setText(self._format_status_message())
 
+        scores_locale: dict[str, Any] = self.locale.get("scores", {})
+        light_template: str = scores_locale.get(
+            "score_light",
+            "Blancs : {score}",
+        )
+        dark_template: str = scores_locale.get(
+            "score_dark",
+            "Noirs : {score}",
+        )
+
         light_val: float = self.engine.get_army_value(Player.LIGHT)
         dark_val: float = self.engine.get_army_value(Player.DARK)
-        self.score_light_label.setText(f"Blancs : {light_val:g}")
-        self.score_dark_label.setText(f"Noirs : {dark_val:g}")
+        self.score_light_label.setText(
+            light_template.format(score=f"{light_val:g}")
+        )
+        self.score_dark_label.setText(
+            dark_template.format(score=f"{dark_val:g}")
+        )
 
     def _handle_square_click(
         self,
@@ -648,21 +808,62 @@ class MainWindow(QMainWindow):
                 self.selected_square = None
             else:
                 piece = self.engine.get_piece(row, col)
-                if piece is not None and piece.player == self.engine.current_player:
+                if (
+                    piece is not None
+                    and piece.player == self.engine.current_player
+                ):
                     self.selected_square = (row, col)
                 else:
-                    promo_choice: str = self.promo_combo.currentText()
-                    promo_type: str = FRENCH_PROMOTION_MAP.get(
-                        promo_choice,
-                        "Queen",
+                    legal_moves: list[Move] = self.engine.get_legal_moves_from(
+                        sel_r,
+                        sel_c,
                     )
-                    candidate_move: Move = Move(
-                        from_pos=(sel_r, sel_c),
-                        to_pos=(row, col),
-                        promotion_type=promo_type,
-                    )
-                    self.engine.make_move(candidate_move)
-                    self.selected_square = None
+                    matching_moves: list[Move] = [
+                        m for m in legal_moves if m.to_pos == (row, col)
+                    ]
+
+                    if not matching_moves:
+                        self.selected_square = None
+                    else:
+                        is_promo: bool = any(
+                            m.promotion_type is not None
+                            for m in matching_moves
+                        )
+                        if is_promo:
+                            promo_options: list[str] = [
+                                m.promotion_type
+                                for m in matching_moves
+                                if m.promotion_type is not None
+                            ]
+                            chosen_promo: Optional[str] = None
+                            if len(promo_options) == 1:
+                                chosen_promo = promo_options[0]
+                            else:
+                                dialog: PromotionDialog = PromotionDialog(
+                                    player=self.engine.current_player,
+                                    promotions=promo_options,
+                                    locale=self.locale,
+                                    parent=self,
+                                )
+                                if dialog.exec() == QDialog.DialogCode.Accepted:
+                                    chosen_promo = dialog.selected_piece_type
+
+                            if chosen_promo is not None:
+                                candidate_move: Move = Move(
+                                    from_pos=(sel_r, sel_c),
+                                    to_pos=(row, col),
+                                    promotion_type=chosen_promo,
+                                )
+                                self.engine.make_move(candidate_move)
+                        else:
+                            candidate_move = Move(
+                                from_pos=(sel_r, sel_c),
+                                to_pos=(row, col),
+                                promotion_type=None,
+                            )
+                            self.engine.make_move(candidate_move)
+
+                        self.selected_square = None
 
         self._update_all()
 
@@ -678,8 +879,31 @@ class MainWindow(QMainWindow):
 def main(
 ) -> None:
     """Launch the Jedrezito PySide6 desktop GUI application."""
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description="Jedrezito - Generalized Chess Games (JEG) Desktop GUI",
+    )
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="chess",
+        help="Name of the chess variant to load (default: chess)",
+    )
+    parser.add_argument(
+        "--language",
+        type=str,
+        default="fr",
+        help="Interface language code (default: fr)",
+    )
+    args: argparse.Namespace = parser.parse_args()
+
+    config: GameConfig = load_variant_config(args.game)
+    locale: dict[str, Any] = load_locale(args.language)
+
     app: QApplication = QApplication(sys.argv)
-    window: MainWindow = MainWindow()
+    window: MainWindow = MainWindow(
+        config=config,
+        locale=locale,
+    )
     window.show()
     sys.exit(app.exec())
 
