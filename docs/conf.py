@@ -25,5 +25,5 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 language = "fr"
 
 # HTML output options
-html_theme = "alabaster"
+html_theme = "furo"
 html_static_path = []
