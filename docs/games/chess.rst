@@ -51,6 +51,12 @@ La partie se dispute sur un échiquier de **8×8** cases. Chaque camp dispose in
 Disposition initiale
 ^^^^^^^^^^^^^^^^^^^^
 
+.. figure:: ../assets/games/chess.svg
+   :align: center
+   :alt: Disposition initiale de la variante Échecs
+
+   Disposition initiale de l'échiquier pour la variante Échecs.
+
 Les pièces occupent les deux premières rangées de chaque joueur (la disposition du camp adverse étant symétrique par rotation de 180°) :
 
 .. list-table:: Placement initial (camp blanc)
