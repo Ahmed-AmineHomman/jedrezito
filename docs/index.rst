@@ -6,6 +6,6 @@
    :maxdepth: 2
    :caption: Sommaire:
 
-   user_guide
-   developer_guide
-   generalized_chess
+    Démarrage Rapide <getting_started.rst>
+    Guide de l'Utilisateur <user_guide.rst>
+    Guide du Développeur <developer_guide.rst>
