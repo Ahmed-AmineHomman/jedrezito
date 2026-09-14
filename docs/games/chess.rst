@@ -3,50 +3,74 @@
 
 La variante des **Échecs** proposée dans ``jedrezito`` constitue l'adaptation du jeu d'échecs traditionnel aux règles fondamentales des Jeux d'Échecs Généralisés (JEG).
 
-Plateau et armées
-^^^^^^^^^^^^^^^^^
+Plateau et armée
+^^^^^^^^^^^^^^^^
 
-La partie se déroule sur un échiquier classique de **8×8** cases.
+La partie se dispute sur un échiquier de **8×8** cases. Chaque camp dispose initialement d'une armée de 16 pièces :
 
-Chaque camp contrôle une armée de 16 pièces :
+.. list-table:: Composition de l'armée
+   :widths: 15 15 12 12 46
+   :header-rows: 1
 
-- **1 Roi** : la pièce maîtresse du jeu, dont la mise en échec et mat détermine l'issue de la partie ;
-- **7 têtes** :
-  - 1 Reine (valeur matérielle : 9) ;
-  - 2 Tours (valeur matérielle : 5) ;
-  - 2 Fous (valeur matérielle : 3) ;
-  - 2 Cavaliers (valeur matérielle : 3) ;
-- **8 Pions** (valeur matérielle : 1).
+   * - Pièce
+     - Catégorie
+     - Quantité
+     - Valeur
+     - Mouvements et captures
+   * - **Roi**
+     - Roi
+     - 1
+     - ∞
+     - Déplacement et capture d'une case dans toutes les directions.
+   * - **Reine**
+     - Tête
+     - 1
+     - 9
+     - Rayons orthogonaux et diagonaux sans limite de portée.
+   * - **Tour**
+     - Tête
+     - 2
+     - 5
+     - Rayons orthogonaux (lignes et colonnes) sans limite de portée.
+   * - **Fou**
+     - Tête
+     - 2
+     - 3
+     - Rayons diagonaux sans limite de portée.
+   * - **Cavalier**
+     - Tête
+     - 2
+     - 3
+     - Sauts en « L » (1, 2) et (2, 1) avec franchissement des pièces intermédiaires.
+   * - **Pion**
+     - Pion
+     - 8
+     - 1
+     - Déplacement d'une case vers l'avant ; capture d'une case en diagonale avant ; promotion en tête à la dernière rangée.
 
 Disposition initiale
 ^^^^^^^^^^^^^^^^^^^^
 
-Les pièces sont alignées sur les deux premières rangées de chaque joueur :
+Les pièces occupent les deux premières rangées de chaque joueur (la disposition du camp adverse étant symétrique par rotation de 180°) :
 
-- **Première rangée** : Tour, Cavalier, Fou, Reine, Roi, Fou, Cavalier, Tour ;
-- **Deuxième rangée** : 8 Pions.
+.. list-table:: Placement initial (camp blanc)
+   :widths: 25 75
+   :header-rows: 1
 
-Le camp adverse présente une disposition symétrique par rotation de 180°.
+   * - Rangée
+     - Pièces (de gauche à droite)
+   * - **1** (arrière)
+     - Tour, Cavalier, Fou, Reine, Roi, Fou, Cavalier, Tour
+   * - **2** (pions)
+     - 8 Pions
 
-Déplacements et captures
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-Chaque type de pièce suit ses mouvements géométriques caractéristiques :
-
-- **Roi** : se déplace et capture d'une case dans toutes les directions (sauts d'amplitude 1 en ligne, colonne et diagonale).
-- **Reine** : parcourt et capture sans limite de portée le long des lignes, des colonnes et des diagonales.
-- **Tour** : parcourt et capture sans limite de portée le long des lignes et des colonnes.
-- **Fou** : parcourt et capture sans limite de portée le long des diagonales.
-- **Cavalier** : effectue des sauts en « L » (deux cases dans une direction puis une case perpendiculaire), en franchissant librement les cases intermédiaires.
-- **Pion** : se déplace d'une case vers l'avant uniquement, et capture d'une case en diagonale vers l'avant uniquement. Lorsqu'un pion atteint la dernière rangée de l'échiquier, il est immédiatement promu en l'une des têtes autorisées : Reine, Tour, Fou ou Cavalier.
-
-Spécificités au sein des JEG
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Spécificités
+^^^^^^^^^^^^
 
 Afin de respecter la formulation formelle des JEG — reposant sur des déplacements exclusivement géométriques et un état de jeu instantané sans mémoire historique — cette variante présente quelques différences notables avec les règles internationales classiques :
 
 - **Pas de roque** : aucun coup ne permet de déplacer deux pièces simultanément ;
-- **Pas de prise en passant** : la capture d'un pion adverse s'effectue strictement sur la case d'arrivée de la pièce capturée ;
+- **Pas de prise en passant** : la capture d'un pion s'effectue exclusivement sur la case de destination de la pièce ciblée ;
 - **Pas de double pas initial du pion** : les pions avancent systématiquement d'une seule case à chaque coup.
 
 L'objectif demeure classique : attaquer le Roi adverse jusqu'à le placer en échec sans coup légal de parade possible (**mat**).

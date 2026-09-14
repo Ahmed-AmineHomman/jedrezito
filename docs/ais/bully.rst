@@ -1,8 +1,19 @@
-========
 La Brute
-========
+--------
 
 **La Brute** (identifiant : ``bully``) est une intelligence artificielle opportuniste et agressive, guidée par la recherche systématique et immédiate du plus grand gain matériel possible.
+
+.. list-table:: Profil de l'agent
+   :widths: 30 70
+
+   * - **Identifiant**
+     - ``bully``
+   * - **Style de jeu**
+     - Agressif / Opportuniste
+   * - **Règle de décision**
+     - Capture de la pièce adverse la plus valorisée avec la pièce attaquante de moindre valeur
+   * - **Coup de repli**
+     - Choix uniforme au hasard parmi tous les coups légaux
 
 Algorithme
 ^^^^^^^^^^

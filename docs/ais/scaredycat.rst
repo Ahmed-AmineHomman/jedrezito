@@ -1,8 +1,21 @@
-================
 Le Chat Échaudé
-================
+---------------
 
 **Le Chat Échaudé** (identifiant : ``scaredycat``) est une intelligence artificielle prudente dont la ligne de conduite principale est la protection mutuelle systématique de ses pièces nobles (les têtes).
+
+.. list-table:: Profil de l'agent
+   :widths: 30 70
+
+   * - **Identifiant**
+     - ``scaredycat``
+   * - **Style de jeu**
+     - Défensif / Cautieux
+   * - **Règle de décision**
+     - Maintien de la protection de toutes les têtes alliées ; attaque de type *Brute* parmi les coups sûrs
+   * - **Stratégie sous menace**
+     - Minimisation de la valeur maximale parmi les têtes exposées
+   * - **Fin de partie sans tête**
+     - Avancée prioritaire des pions vers la promotion
 
 Algorithme
 ^^^^^^^^^^

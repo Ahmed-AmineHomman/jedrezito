@@ -7,10 +7,24 @@ Jeux Pris en Charge
 
 ``jedrezito`` propose un moteur capable de faire tourner un ensemble de jeux "échiquéens" que l'on nomme les *Jeux d'Echecs Généralisés* (JEG). Chaque jeu spécifique appartenant à l'ensemble des JEGs nécessite simplement de définir certains attributs (du plateau, des pièces, etc...), et la combinaison avec le moteur de jeu générique en fait un jeu entièrement défini et jouable.
 
+Jeux d'Echecs Généralisés (JEG)
+===============================
+
+Cette section, assez théorique et potentiellement indigeste, couvre la définition formelle de ce que sont les JEGs et leurs principes communs.
+
 .. toctree::
    :maxdepth: 1
 
     Jeux d'Echecs Généralisés (JEG) <games/generalized_chess.rst>
+
+Jeux Pris en Charge
+===================
+
+Cette section décrit tous les jeux proposés par ``jedrezito``.
+
+.. toctree::
+   :maxdepth: 1
+
     Echecs <games/chess.rst>
     Mini-échecs <games/mini_chess.rst>
 

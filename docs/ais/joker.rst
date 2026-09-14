@@ -3,6 +3,18 @@ Le Joker
 
 Le **Joker** (identifiant : ``joker``) est un agent d'intelligence artificielle au comportement purement aléatoire.
 
+.. list-table:: Profil de l'agent
+   :widths: 30 70
+
+   * - **Identifiant**
+     - ``joker``
+   * - **Style de jeu**
+     - Imprévisible / Aléatoire
+   * - **Règle de décision**
+     - Tirage uniforme parmi tous les coups légaux
+   * - **Évaluation matérielle**
+     - Aucune
+
 Algorithme
 ^^^^^^^^^^
 
