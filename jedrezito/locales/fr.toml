@@ -19,6 +19,12 @@ confirm_switch_message = "Une partie est en cours. Voulez-vous vraiment charger 
 [players]
 light = "Blancs"
 dark = "Noirs"
+human = "Humain"
+ai = "IA"
+
+[ais]
+joker = "Joker (Aléatoire)"
+
 
 [status]
 turn = "Tour : {player}"
@@ -37,6 +43,19 @@ score_dark = "Noirs : {score}"
 [dialogs.promotion]
 window_title = "Promotion du pion"
 prompt = "Choisissez une pièce pour la promotion :"
+
+[dialogs.setup]
+window_title = "Configuration de la partie"
+dialog_title = "Configurer une nouvelle partie"
+variant_group = "Variante de jeu"
+players_group = "Configuration des joueurs"
+light_player_label = "Joueur Blancs :"
+dark_player_label = "Joueur Noirs :"
+ai_choice_label = "Modèle d'IA :"
+btn_start = "Démarrer la partie"
+btn_cancel = "Annuler"
+btn_open_setup = "Configurer la partie"
+
 
 [pieces]
 King = "Roi"

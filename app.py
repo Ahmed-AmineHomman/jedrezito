@@ -8,6 +8,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import (
+    dataclass,
+)
+from enum import (
+    Enum,
+)
 from typing import (
     Any,
     Optional,
@@ -16,6 +22,7 @@ from typing import (
 from PySide6.QtCore import (
     QSize,
     Qt,
+    QTimer,
     Signal,
 )
 from PySide6.QtGui import (
@@ -39,6 +46,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from jedrezito.ai import (
+    BaseAI,
+    create_ai,
+    list_available_ais,
+)
 from jedrezito.config import (
     get_variant_metadata,
     list_available_variants,
@@ -189,6 +201,408 @@ class PromotionDialog(QDialog):
             Name of chosen piece type.
         """
         self.selected_piece_type = piece_type
+        self.accept()
+
+
+class PlayerKind(str, Enum):
+    """Kind of player controller.
+
+    Attributes
+    ----------
+    HUMAN : str
+        Human player interacting with the GUI.
+    AI : str
+        Autonomous AI agent choosing moves programmatically.
+    """
+
+    HUMAN = "human"
+    AI = "ai"
+
+
+@dataclass
+class PlayerSettings:
+    """Settings defining a player's controller.
+
+    Parameters
+    ----------
+    kind : PlayerKind
+        Controller kind (Human or AI).
+    ai_name : str or None, optional
+        Registered AI identifier if kind is AI, by default None.
+
+    Attributes
+    ----------
+    kind : PlayerKind
+        Controller kind.
+    ai_name : str or None
+        AI agent identifier.
+    """
+
+    kind: PlayerKind
+    ai_name: Optional[str] = None
+
+
+class GameSetupDialog(QDialog):
+    """Modal dialog allowing users to configure game variant and players before starting.
+
+    Parameters
+    ----------
+    current_variant : str
+        Currently active variant name.
+    light_settings : PlayerSettings
+        Current player settings for Light.
+    dark_settings : PlayerSettings
+        Current player settings for Dark.
+    locale : dict of str to Any
+        Localized UI strings dictionary.
+    parent : QWidget or None, optional
+        Parent widget, by default None.
+
+    Attributes
+    ----------
+    selected_variant : str
+        The chosen variant identifier upon dialog confirmation.
+    selected_light_settings : PlayerSettings
+        The chosen player settings for Light upon confirmation.
+    selected_dark_settings : PlayerSettings
+        The chosen player settings for Dark upon confirmation.
+    locale : dict of str to Any
+        Active localization strings dictionary.
+    """
+
+    def __init__(
+        self,
+        current_variant: str,
+        light_settings: PlayerSettings,
+        dark_settings: PlayerSettings,
+        locale: dict[str, Any],
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.locale: dict[str, Any] = locale
+        self.selected_variant: str = current_variant
+        self.selected_light_settings: PlayerSettings = light_settings
+        self.selected_dark_settings: PlayerSettings = dark_settings
+
+        setup_locale: dict[str, Any] = (
+            self.locale.get("dialogs", {}).get("setup", {})
+        )
+        self.setWindowTitle(
+            setup_locale.get("window_title", "Configuration de la partie")
+        )
+        self.setModal(True)
+        self.setMinimumWidth(440)
+        self.setStyleSheet(
+            "QDialog {"
+            "  background-color: #242220;"
+            "  border: 2px solid #3c3834;"
+            "  border-radius: 8px;"
+            "}"
+            "QLabel {"
+            "  color: #f0eae1;"
+            "}"
+            "QGroupBox {"
+            "  color: #d6cfc7;"
+            "  font-weight: bold;"
+            "  border: 1px solid #3c3834;"
+            "  border-radius: 6px;"
+            "  margin-top: 10px;"
+            "  padding-top: 14px;"
+            "}"
+            "QGroupBox::title {"
+            "  subcontrol-origin: margin;"
+            "  left: 10px;"
+            "  padding: 0 4px;"
+            "}"
+            "QComboBox {"
+            "  background-color: #332f2b;"
+            "  color: #f0eae1;"
+            "  border: 1px solid #4a443e;"
+            "  border-radius: 6px;"
+            "  padding: 6px 10px;"
+            "  font-size: 13px;"
+            "}"
+            "QComboBox:hover {"
+            "  border-color: #5d9337;"
+            "}"
+            "QComboBox QAbstractItemView {"
+            "  background-color: #242220;"
+            "  color: #f0eae1;"
+            "  selection-background-color: #4a752c;"
+            "  selection-color: #ffffff;"
+            "  border: 1px solid #4a443e;"
+            "  outline: none;"
+            "}"
+        )
+
+        layout: QVBoxLayout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+
+        # Title
+        title_label: QLabel = QLabel(
+            setup_locale.get("dialog_title", "Configurer une nouvelle partie"),
+            self,
+        )
+        title_label.setStyleSheet(
+            "color: #f5f5f5;"
+            "font-size: 16px;"
+            "font-weight: bold;"
+            "qproperty-alignment: AlignCenter;"
+        )
+        layout.addWidget(title_label)
+
+        # 1. Variant selection group
+        variant_group: QGroupBox = QGroupBox(
+            setup_locale.get("variant_group", "Variante de jeu"),
+            self,
+        )
+        var_layout: QVBoxLayout = QVBoxLayout(variant_group)
+        var_layout.setSpacing(8)
+
+        self.combo_variant: QComboBox = QComboBox(self)
+        variants: list[str] = list_available_variants()
+        for v in variants:
+            try:
+                meta: dict[str, Any] = get_variant_metadata(v)
+                disp_name: str = meta.get("name", v)
+            except Exception:
+                disp_name = v
+            self.combo_variant.addItem(f"{disp_name} ({v})", v)
+
+        # Pre-select current variant
+        for i in range(self.combo_variant.count()):
+            if self.combo_variant.itemData(i) == current_variant:
+                self.combo_variant.setCurrentIndex(i)
+                break
+
+        var_layout.addWidget(self.combo_variant)
+
+        self.lbl_variant_info: QLabel = QLabel(self)
+        self.lbl_variant_info.setStyleSheet("color: #b0a89f; font-size: 12px;")
+        var_layout.addWidget(self.lbl_variant_info)
+        self.combo_variant.currentIndexChanged.connect(self._update_variant_preview)
+        self._update_variant_preview()
+        layout.addWidget(variant_group)
+
+        # 2. Players selection group
+        players_group: QGroupBox = QGroupBox(
+            setup_locale.get("players_group", "Configuration des joueurs"),
+            self,
+        )
+        players_layout: QVBoxLayout = QVBoxLayout(players_group)
+        players_layout.setSpacing(12)
+
+        players_locale: dict[str, Any] = self.locale.get("players", {})
+        ais_locale: dict[str, Any] = self.locale.get("ais", {})
+        available_ais: list[str] = list_available_ais()
+
+        self.combo_light_type, self.combo_light_ai, row_light = self._create_player_row(
+            label_text=setup_locale.get("light_player_label", "Joueur Blancs :"),
+            default_settings=light_settings,
+            players_locale=players_locale,
+            ais_locale=ais_locale,
+            available_ais=available_ais,
+        )
+        players_layout.addWidget(row_light)
+
+        self.combo_dark_type, self.combo_dark_ai, row_dark = self._create_player_row(
+            label_text=setup_locale.get("dark_player_label", "Joueur Noirs :"),
+            default_settings=dark_settings,
+            players_locale=players_locale,
+            ais_locale=ais_locale,
+            available_ais=available_ais,
+        )
+        players_layout.addWidget(row_dark)
+        layout.addWidget(players_group)
+
+        # 3. Buttons layout
+        btn_layout: QHBoxLayout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        btn_cancel: QPushButton = QPushButton(
+            setup_locale.get("btn_cancel", "Annuler"),
+            self,
+        )
+        btn_cancel.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #332f2b;"
+            "  color: #f0eae1;"
+            "  font-size: 14px;"
+            "  padding: 8px 16px;"
+            "  border: 1px solid #4a443e;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #4a443e;"
+            "}"
+        )
+        btn_cancel.clicked.connect(self.reject)
+        btn_layout.addWidget(btn_cancel)
+
+        btn_start: QPushButton = QPushButton(
+            setup_locale.get("btn_start", "Démarrer la partie"),
+            self,
+        )
+        btn_start.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #4a752c;"
+            "  color: #ffffff;"
+            "  font-size: 14px;"
+            "  font-weight: bold;"
+            "  padding: 8px 16px;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #5d9337;"
+            "}"
+            "QPushButton:pressed {"
+            "  background-color: #3b5e23;"
+            "}"
+        )
+        btn_start.clicked.connect(self._on_start_clicked)
+        btn_layout.addWidget(btn_start)
+
+        layout.addLayout(btn_layout)
+
+    def _create_player_row(
+        self,
+        label_text: str,
+        default_settings: PlayerSettings,
+        players_locale: dict[str, Any],
+        ais_locale: dict[str, Any],
+        available_ais: list[str],
+    ) -> tuple[QComboBox, QComboBox, QWidget]:
+        """Create a row containing player type and AI model selectors.
+
+        Parameters
+        ----------
+        label_text : str
+            Display label identifying the player color.
+        default_settings : PlayerSettings
+            Initial player settings to populate.
+        players_locale : dict of str to Any
+            Localized player labels.
+        ais_locale : dict of str to Any
+            Localized AI names.
+        available_ais : list of str
+            Identifiers of registered AI agents.
+
+        Returns
+        -------
+        tuple of QComboBox, QComboBox, QWidget
+            Tuple of (type combo, AI combo, container row widget).
+        """
+        row_widget: QWidget = QWidget(self)
+        row_layout: QHBoxLayout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(10)
+
+        lbl: QLabel = QLabel(label_text, row_widget)
+        lbl.setFixedWidth(115)
+        lbl.setStyleSheet("font-weight: bold;")
+        row_layout.addWidget(lbl)
+
+        combo_type: QComboBox = QComboBox(row_widget)
+        combo_type.addItem(
+            players_locale.get("human", "Humain"),
+            PlayerKind.HUMAN,
+        )
+        combo_type.addItem(
+            players_locale.get("ai", "IA"),
+            PlayerKind.AI,
+        )
+        row_layout.addWidget(combo_type)
+
+        combo_ai: QComboBox = QComboBox(row_widget)
+        for ai_id in available_ais:
+            ai_display: str = ais_locale.get(ai_id, ai_id.capitalize())
+            combo_ai.addItem(ai_display, ai_id)
+        row_layout.addWidget(combo_ai)
+
+        if default_settings.kind == PlayerKind.AI:
+            combo_type.setCurrentIndex(1)
+            if default_settings.ai_name is not None:
+                for i in range(combo_ai.count()):
+                    if combo_ai.itemData(i) == default_settings.ai_name:
+                        combo_ai.setCurrentIndex(i)
+                        break
+            combo_ai.setVisible(True)
+        else:
+            combo_type.setCurrentIndex(0)
+            combo_ai.setVisible(False)
+
+        combo_type.currentIndexChanged.connect(
+            lambda idx, c_ai=combo_ai, c_type=combo_type: c_ai.setVisible(
+                c_type.itemData(idx) == PlayerKind.AI
+            )
+        )
+
+        return combo_type, combo_ai, row_widget
+
+    def _update_variant_preview(
+        self,
+    ) -> None:
+        """Update metadata preview for the chosen variant."""
+        variant_id: Optional[str] = self.combo_variant.currentData()
+        if variant_id is None:
+            self.lbl_variant_info.setText("")
+            return
+
+        selector_locale: dict[str, Any] = self.locale.get("selector", {})
+        try:
+            meta: dict[str, Any] = get_variant_metadata(variant_id)
+            dim_template: str = selector_locale.get(
+                "dimensions_label",
+                "Plateau : {rows} × {cols}",
+            )
+            dims: str = dim_template.format(rows=meta["rows"], cols=meta["cols"])
+            turn_limit: Optional[int] = meta.get("turn_limit")
+            limit_str: str = (
+                str(turn_limit)
+                if turn_limit is not None
+                else selector_locale.get("turn_limit_none", "Illimité")
+            )
+            turn_template: str = selector_locale.get(
+                "turn_limit_label",
+                "Limite de tours : {limit}",
+            )
+            turns: str = turn_template.format(limit=limit_str)
+            self.lbl_variant_info.setText(f"{dims}  |  {turns}")
+        except Exception:
+            self.lbl_variant_info.setText("")
+
+    def _on_start_clicked(
+        self,
+    ) -> None:
+        """Store configured parameters and accept the dialog."""
+        var_id: Optional[str] = self.combo_variant.currentData()
+        if var_id:
+            self.selected_variant = var_id
+
+        light_kind: PlayerKind = self.combo_light_type.currentData()
+        light_ai: Optional[str] = (
+            self.combo_light_ai.currentData()
+            if light_kind == PlayerKind.AI
+            else None
+        )
+        self.selected_light_settings = PlayerSettings(
+            kind=light_kind,
+            ai_name=light_ai,
+        )
+
+        dark_kind: PlayerKind = self.combo_dark_type.currentData()
+        dark_ai: Optional[str] = (
+            self.combo_dark_ai.currentData()
+            if dark_kind == PlayerKind.AI
+            else None
+        )
+        self.selected_dark_settings = PlayerSettings(
+            kind=dark_kind,
+            ai_name=dark_ai,
+        )
+
         self.accept()
 
 
@@ -722,6 +1136,10 @@ class MainWindow(QMainWindow):
         Active localization strings dictionary.
     current_variant : str
         Identifier of the active game variant.
+    player_configs : dict of Player to PlayerSettings
+        Controller settings for Light and Dark players.
+    ai_agents : dict of Player to BaseAI or None
+        Active AI agent instances for each player camp.
     engine : GameEngine
         Active JEG game engine instance.
     selected_square : tuple of int or None
@@ -755,6 +1173,18 @@ class MainWindow(QMainWindow):
         self.config: GameConfig = config
         self.locale: dict[str, Any] = locale
         self.current_variant: str = initial_variant
+
+        self.player_configs: dict[Player, PlayerSettings] = {
+            Player.LIGHT: PlayerSettings(PlayerKind.HUMAN),
+            Player.DARK: PlayerSettings(PlayerKind.HUMAN),
+        }
+        self.ai_agents: dict[Player, Optional[BaseAI]] = {
+            Player.LIGHT: None,
+            Player.DARK: None,
+        }
+        self._ai_timer: QTimer = QTimer(self)
+        self._ai_timer.setSingleShot(True)
+        self._ai_timer.timeout.connect(self._perform_ai_move)
 
         app_locale: dict[str, Any] = self.locale.get("app", {})
         self.setWindowTitle(
@@ -926,7 +1356,7 @@ class MainWindow(QMainWindow):
             )
         )
 
-        # Reset Game Button
+        # Reset / Configure Game Button
         self.btn_new_game: QPushButton = QPushButton(
             app_locale.get("btn_new_game", "Nouvelle partie"),
             self,
@@ -1001,14 +1431,34 @@ class MainWindow(QMainWindow):
                 "⌛ Épuisement des tours !\nÉgalité matérielle parfaite.",
             )
 
+        player_camp: Player = self.engine.current_player
         player_str: str = (
-            light_name if self.engine.current_player == Player.LIGHT else dark_name
+            light_name if player_camp == Player.LIGHT else dark_name
         )
+
+        ctrl_settings: PlayerSettings = self.player_configs.get(
+            player_camp,
+            PlayerSettings(PlayerKind.HUMAN),
+        )
+        if ctrl_settings.kind == PlayerKind.AI:
+            ai_name_str: str = ctrl_settings.ai_name or "joker"
+            ai_name_disp: str = self.locale.get("ais", {}).get(
+                ai_name_str,
+                ai_name_str.capitalize(),
+            )
+            controller_label: str = (
+                f"{players_locale.get('ai', 'IA')} {ai_name_disp}"
+            )
+        else:
+            controller_label = players_locale.get("human", "Humain")
+
         turn_template: str = status_locale.get(
             "turn",
             "Tour : {player}",
         )
-        base_status: str = turn_template.format(player=player_str)
+        base_status: str = (
+            f"{turn_template.format(player=player_str)} ({controller_label})"
+        )
 
         check_note: str = ""
         if self.engine.is_in_check(self.engine.current_player):
@@ -1033,7 +1483,7 @@ class MainWindow(QMainWindow):
                 )
                 selection_template: str = status_locale.get(
                     "selection_pattern",
-                    "\nSélection : {symbol} {piece_name} ({coords})",
+                    "\nSélection : {symbol} {piece_name} ({coords})"
                 )
                 selection_note = selection_template.format(
                     symbol=symbol,
@@ -1068,6 +1518,49 @@ class MainWindow(QMainWindow):
         self.score_dark_label.setText(
             dark_template.format(score=f"{dark_val:g}")
         )
+        self._check_ai_turn()
+
+    def _check_ai_turn(
+        self,
+    ) -> None:
+        """Schedule an AI move if the active player is an AI."""
+        if self.engine.status != GameStatus.ONGOING:
+            return
+
+        current: Player = self.engine.current_player
+        settings: PlayerSettings = self.player_configs.get(
+            current,
+            PlayerSettings(PlayerKind.HUMAN),
+        )
+        if settings.kind == PlayerKind.AI:
+            if not self._ai_timer.isActive():
+                self._ai_timer.start(300)
+
+    def _perform_ai_move(
+        self,
+    ) -> None:
+        """Execute a move computed by the active AI agent."""
+        if self.engine.status != GameStatus.ONGOING:
+            return
+
+        current: Player = self.engine.current_player
+        settings: PlayerSettings = self.player_configs.get(
+            current,
+            PlayerSettings(PlayerKind.HUMAN),
+        )
+        if settings.kind != PlayerKind.AI:
+            return
+
+        ai: Optional[BaseAI] = self.ai_agents.get(current)
+        if ai is None:
+            return
+
+        move: Optional[Move] = ai.select_move(self.engine)
+        if move is not None:
+            self.engine.make_move(move)
+
+        self.selected_square = None
+        self._update_all()
 
     def _handle_square_click(
         self,
@@ -1084,6 +1577,13 @@ class MainWindow(QMainWindow):
             Column coordinate of clicked square.
         """
         if self.engine.status != GameStatus.ONGOING:
+            return
+
+        # Block user interaction during AI turn
+        if (
+            self.player_configs[self.engine.current_player].kind
+            == PlayerKind.AI
+        ):
             return
 
         if self.selected_square is None:
@@ -1145,9 +1645,9 @@ class MainWindow(QMainWindow):
                                 self.engine.make_move(candidate_move)
                         else:
                             candidate_move = Move(
-                                from_pos=(sel_r, sel_c),
-                                to_pos=(row, col),
-                                promotion_type=None,
+                                    from_pos=(sel_r, sel_c),
+                                    to_pos=(row, col),
+                                    promotion_type=None,
                             )
                             self.engine.make_move(candidate_move)
 
@@ -1158,10 +1658,62 @@ class MainWindow(QMainWindow):
     def _handle_new_game(
         self,
     ) -> None:
-        """Reset the match and restore the initial game state."""
-        self.engine.reset()
-        self.selected_square = None
-        self._update_all()
+        """Open the game configuration dialog and initialize a new match."""
+        dialog: GameSetupDialog = GameSetupDialog(
+            current_variant=self.current_variant,
+            light_settings=self.player_configs[Player.LIGHT],
+            dark_settings=self.player_configs[Player.DARK],
+            locale=self.locale,
+            parent=self,
+        )
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._start_configured_game(
+                variant_name=dialog.selected_variant,
+                light_settings=dialog.selected_light_settings,
+                dark_settings=dialog.selected_dark_settings,
+            )
+
+    def _start_configured_game(
+        self,
+        variant_name: str,
+        light_settings: PlayerSettings,
+        dark_settings: PlayerSettings,
+    ) -> None:
+        """Initialize a new game with chosen variant and player configurations.
+
+        Parameters
+        ----------
+        variant_name : str
+            Variant identifier to load.
+        light_settings : PlayerSettings
+            Controller configuration for Light player.
+        dark_settings : PlayerSettings
+            Controller configuration for Dark player.
+        """
+        self._ai_timer.stop()
+        self.player_configs = {
+            Player.LIGHT: light_settings,
+            Player.DARK: dark_settings,
+        }
+        self.ai_agents = {
+            Player.LIGHT: (
+                create_ai(light_settings.ai_name)
+                if light_settings.kind == PlayerKind.AI and light_settings.ai_name
+                else None
+            ),
+            Player.DARK: (
+                create_ai(dark_settings.ai_name)
+                if dark_settings.kind == PlayerKind.AI and dark_settings.ai_name
+                else None
+            ),
+        }
+
+        if variant_name != self.current_variant:
+            self._load_game_variant(variant_name)
+        else:
+            self.engine.reset()
+            self.selected_square = None
+            self._update_all()
 
     def _handle_variant_selected(
         self,
@@ -1196,7 +1748,11 @@ class MainWindow(QMainWindow):
                 self.selector_widget.set_current_variant(self.current_variant)
                 return
 
-        self._load_game_variant(variant_name)
+        self._start_configured_game(
+            variant_name=variant_name,
+            light_settings=self.player_configs[Player.LIGHT],
+            dark_settings=self.player_configs[Player.DARK],
+        )
 
     def _load_game_variant(
         self,
@@ -1209,6 +1765,7 @@ class MainWindow(QMainWindow):
         variant_name : str
             Identifier of the variant to load.
         """
+        self._ai_timer.stop()
         new_config: GameConfig = load_variant_config(variant_name)
         self.config = new_config
         self.current_variant = variant_name
